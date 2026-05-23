@@ -1,0 +1,320 @@
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import {
+  ArrowRight,
+  Calendar,
+  Camera as CameraIcon,
+  ChevronRight,
+  Crown,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react-native";
+import React, { useMemo } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Card, Chip, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
+import { C } from "@/constants/colors";
+import { EVENT_TYPES } from "@/constants/templates";
+import { rsvpStats, useEvents } from "@/providers/EventsProvider";
+import type { Event } from "@/types/event";
+
+function countdown(ts: number) {
+  const diff = ts - Date.now();
+  if (diff < 0) return "Live now";
+  const day = 24 * 3600 * 1000;
+  const days = Math.floor(diff / day);
+  const hours = Math.floor((diff % day) / (3600 * 1000));
+  if (days > 0) return `in ${days}d ${hours}h`;
+  const mins = Math.floor((diff % (3600 * 1000)) / 60000);
+  return `in ${hours}h ${mins}m`;
+}
+
+function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
+  const stats = rsvpStats(event.rsvps);
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}>
+      <View style={styles.rowImg}>
+        <Image source={{ uri: event.cover }} style={styles.rowImgInner} contentFit="cover" />
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.rowImgOverlay} />
+        <View style={styles.rowImgBadge}>
+          <Text style={styles.rowImgBadgeText}>{countdown(event.date)}</Text>
+        </View>
+      </View>
+      <View style={{ flex: 1, gap: 6 }}>
+        <Text style={styles.rowTitle} numberOfLines={1}>
+          {event.name}
+        </Text>
+        <Text style={styles.rowSub} numberOfLines={1}>
+          {event.venue}
+        </Text>
+        <View style={styles.rowMeta}>
+          <View style={styles.rowMetaItem}>
+            <Users color={C.subtext} size={12} />
+            <Text style={styles.rowMetaText}>{stats.attendingCount} going</Text>
+          </View>
+          <View style={styles.rowDot} />
+          <View style={styles.rowMetaItem}>
+            <CameraIcon color={C.subtext} size={12} />
+            <Text style={styles.rowMetaText}>{event.photos.length} photos</Text>
+          </View>
+        </View>
+      </View>
+      <ChevronRight color={C.mute} size={20} />
+    </Pressable>
+  );
+}
+
+export default function EventsScreen() {
+  const router = useRouter();
+  const { upcoming, profile } = useEvents();
+
+  const hero = useMemo(() => upcoming[0], [upcoming]);
+  const rest = useMemo(() => upcoming.slice(1), [upcoming]);
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={["rgba(255,45,122,0.32)", "rgba(139,0,48,0.15)", "transparent"]}
+        style={styles.heroGradient}
+      />
+      <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.hello}>Hello, {profile.name}</Text>
+              <Text style={styles.title}>Your celebrations</Text>
+            </View>
+            <Pressable
+              onPress={() => router.push("/paywall")}
+              style={({ pressed }) => [styles.crown, { opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Crown color={profile.premium ? C.gold : C.subtext} size={18} />
+            </Pressable>
+          </View>
+
+          {hero ? (
+            <Pressable
+              onPress={() => router.push(`/event/${hero.id}` as never)}
+              style={({ pressed }) => [styles.heroWrap, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
+            >
+              <Image source={{ uri: hero.cover }} style={styles.heroImg} contentFit="cover" />
+              <LinearGradient
+                colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.95)"]}
+                style={styles.heroOverlay}
+              />
+              <View style={styles.heroContent}>
+                <Tag label="Next up" tone="pink" />
+                <Text style={styles.heroTitle}>{hero.name}</Text>
+                <Text style={styles.heroSub}>
+                  {hero.venue} · {countdown(hero.date)}
+                </Text>
+                <View style={styles.heroActions}>
+                  <PrimaryButton
+                    title="Open event"
+                    icon={ArrowRight}
+                    onPress={() => router.push(`/event/${hero.id}` as never)}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          ) : null}
+
+          <View style={styles.quickGrid}>
+            <Pressable
+              onPress={() => router.push("/create")}
+              style={({ pressed }) => [styles.quick, { opacity: pressed ? 0.85 : 1 }]}
+            >
+              <LinearGradient
+                colors={[C.pinkHi, C.pink, C.pinkDeep]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickIcon}
+              >
+                <Plus color={C.text} size={22} />
+              </LinearGradient>
+              <Text style={styles.quickTitle}>Create event</Text>
+              <Text style={styles.quickSub}>Design an invite</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/camera" as never)}
+              style={({ pressed }) => [styles.quick, { opacity: pressed ? 0.85 : 1 }]}
+            >
+              <View style={[styles.quickIcon, { backgroundColor: C.cardHi }]}>
+                <CameraIcon color={C.gold} size={22} />
+              </View>
+              <Text style={styles.quickTitle}>Open camera</Text>
+              <Text style={styles.quickSub}>Capture memories</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.sectionRow}>
+            <SectionTitle>Browse by type</SectionTitle>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+            style={{ marginHorizontal: -16 }}
+          >
+            {EVENT_TYPES.map((t) => (
+              <Chip key={t.id} label={t.label} icon={t.emoji} />
+            ))}
+          </ScrollView>
+
+          <View style={styles.sectionRow}>
+            <SectionTitle>Upcoming</SectionTitle>
+            <Pressable>
+              <Text style={styles.seeAll}>See all</Text>
+            </Pressable>
+          </View>
+
+          {rest.length === 0 ? (
+            <Card style={{ alignItems: "center", gap: 8, paddingVertical: 28 }}>
+              <Sparkles color={C.pink} size={26} />
+              <Text style={styles.emptyTitle}>You're all set</Text>
+              <Text style={styles.emptySub}>Create your next celebration in minutes.</Text>
+            </Card>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {rest.map((e) => (
+                <EventRow key={e.id} event={e} onPress={() => router.push(`/event/${e.id}` as never)} />
+              ))}
+            </View>
+          )}
+
+          <Pressable
+            onPress={() => router.push("/paywall")}
+            style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
+          >
+            <LinearGradient
+              colors={["#1A0410", "#3D0A24", "#8B0030"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={{ flex: 1, gap: 6 }}>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                <Crown color={C.gold} size={16} />
+                <Text style={styles.proKicker}>SHEREHE PRO</Text>
+              </View>
+              <Text style={styles.proTitle}>Unlock luxury templates & HD memories</Text>
+              <Text style={styles.proSub}>Bigger guest lists · custom branding · forever storage</Text>
+            </View>
+            <ChevronRight color={C.text} size={20} />
+          </Pressable>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </SafeAreaView>
+
+      <View style={styles.fab}>
+        <PrimaryButton title="New event" icon={Plus} onPress={() => router.push("/create")} />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  heroGradient: { position: "absolute", top: 0, left: 0, right: 0, height: 400 },
+  scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 18 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  hello: { color: C.subtext, fontSize: 13, letterSpacing: 0.3 },
+  title: { color: C.text, fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.6 },
+  crown: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.hair,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroWrap: {
+    borderRadius: 28,
+    overflow: "hidden",
+    height: 380,
+    backgroundColor: C.card,
+  },
+  heroImg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  heroOverlay: StyleSheet.absoluteFillObject,
+  heroContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 22, gap: 8 },
+  heroTitle: { color: C.text, fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.6 },
+  heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 14 },
+  heroActions: { flexDirection: "row", gap: 10, marginTop: 12 },
+  quickGrid: { flexDirection: "row", gap: 12 },
+  quick: {
+    flex: 1,
+    backgroundColor: C.card,
+    borderColor: C.hair,
+    borderWidth: 1,
+    padding: 16,
+    borderRadius: 22,
+    gap: 8,
+  },
+  quickIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickTitle: { color: C.text, fontWeight: "700" as const, fontSize: 15 },
+  quickSub: { color: C.subtext, fontSize: 12 },
+  sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+  seeAll: { color: C.pinkHi, fontWeight: "600" as const, fontSize: 13 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.card,
+    padding: 12,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  rowImg: { width: 76, height: 76, borderRadius: 16, overflow: "hidden", backgroundColor: C.cardHi },
+  rowImgInner: { width: "100%", height: "100%" },
+  rowImgOverlay: StyleSheet.absoluteFillObject,
+  rowImgBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 6,
+    paddingVertical: 2,
+    alignItems: "center",
+  },
+  rowImgBadgeText: { color: C.text, fontSize: 9, fontWeight: "700" as const, letterSpacing: 0.4 },
+  rowTitle: { color: C.text, fontSize: 16, fontWeight: "700" as const, letterSpacing: -0.2 },
+  rowSub: { color: C.subtext, fontSize: 13 },
+  rowMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rowMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  rowMetaText: { color: C.subtext, fontSize: 12 },
+  rowDot: { width: 3, height: 3, borderRadius: 3, backgroundColor: C.mute },
+  emptyTitle: { color: C.text, fontWeight: "700" as const, fontSize: 16 },
+  emptySub: { color: C.subtext, fontSize: 13 },
+  proCard: {
+    borderRadius: 22,
+    padding: 18,
+    overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "rgba(244,201,123,0.25)",
+  },
+  proKicker: { color: C.gold, fontSize: 11, fontWeight: "800" as const, letterSpacing: 2 },
+  proTitle: { color: C.text, fontSize: 16, fontWeight: "700" as const, lineHeight: 21 },
+  proSub: { color: "rgba(255,255,255,0.7)", fontSize: 12 },
+  fab: { position: "absolute", bottom: 100, right: 16 },
+});

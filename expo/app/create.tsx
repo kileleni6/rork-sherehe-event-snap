@@ -1,0 +1,955 @@
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ImagePlus,
+  Plus,
+  Sparkles,
+  Wand2,
+  X,
+  Zap,
+} from "lucide-react-native";
+import React, { useMemo, useState } from "react";
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Calendar } from "@/components/Calendar";
+import { InvitationCard } from "@/components/InvitationCard";
+import { Chip, GhostButton, PrimaryButton } from "@/components/ui";
+import { C } from "@/constants/colors";
+import {
+  COVER_CATEGORIES,
+  EVENT_TYPES,
+  TEMPLATE_CATEGORIES,
+  TEMPLATES,
+  TIME_OF_DAY,
+  timeOfDayFromDate,
+  type EventTypeId,
+  type TemplateCategory,
+  type TemplateId,
+  type TimeOfDayId,
+} from "@/constants/templates";
+import { useEvents } from "@/providers/EventsProvider";
+import type { ScheduleItem } from "@/types/event";
+
+const TOTAL_STEPS = 5;
+
+const COPY_SAMPLES: Record<EventTypeId, string> = {
+  wedding: "Together with our families, we joyfully invite you to witness our forever begin.",
+  birthday: "Come sip, dance and toast another trip around the sun with me!",
+  baby: "A tiny miracle is on the way — celebrate the joy with us.",
+  graduation: "From late nights to a new chapter — please join us as we celebrate.",
+  vacation: "Pack lightly, smile widely. Join the getaway of the year.",
+  private: "An intimate evening of good people, good music and great stories.",
+  brand: "Doors open. Glasses up. Step inside the experience.",
+  custom: "We've planned something special. We'd love to share it with you.",
+};
+
+function StepHeader({ step, title }: { step: string; title: string }) {
+  return (
+    <View style={{ gap: 6, marginBottom: 16 }}>
+      <Text style={s.kicker}>{step}</Text>
+      <Text style={s.title}>{title}</Text>
+    </View>
+  );
+}
+
+export default function CreateEventScreen() {
+  const router = useRouter();
+  const { createEvent } = useEvents();
+
+  const [step, setStep] = useState<number>(0);
+  const [name, setName] = useState<string>("");
+  const [hostName, setHostName] = useState<string>("");
+  const [type, setType] = useState<EventTypeId>("wedding");
+  const [customLabel, setCustomLabel] = useState<string>("");
+  const [cover, setCover] = useState<string>(COVER_CATEGORIES[0].images[0]);
+  const [coverCategory, setCoverCategory] = useState<string>(COVER_CATEGORIES[0].id);
+  const [venue, setVenue] = useState<string>("");
+  const [message, setMessage] = useState<string>("");
+  const [dressCode, setDressCode] = useState<string>("");
+  const [template, setTemplate] = useState<TemplateId>("noir");
+  const [tplCategory, setTplCategory] = useState<TemplateCategory | "all">("all");
+  const [date, setDate] = useState<number>(() => {
+    const d = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    d.setHours(19, 0, 0, 0);
+    return d.getTime();
+  });
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDayId>(() =>
+    timeOfDayFromDate(Date.now() + 7 * 24 * 3600 * 1000)
+  );
+  const [hour, setHour] = useState<number>(19);
+  const [minute, setMinute] = useState<number>(0);
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [schedTime, setSchedTime] = useState<string>("");
+  const [schedTitle, setSchedTitle] = useState<string>("");
+  const [quickMode, setQuickMode] = useState<boolean>(false);
+
+  const tpl = useMemo(() => TEMPLATES.find((t) => t.id === template) ?? TEMPLATES[0], [template]);
+  const visibleTemplates = useMemo(
+    () => (tplCategory === "all" ? TEMPLATES : TEMPLATES.filter((t) => t.category === tplCategory)),
+    [tplCategory]
+  );
+  const visibleCovers = useMemo(
+    () => COVER_CATEGORIES.find((c) => c.id === coverCategory)?.images ?? [],
+    [coverCategory]
+  );
+
+  const dateWithTime = useMemo(() => {
+    const d = new Date(date);
+    d.setHours(hour, minute, 0, 0);
+    return d.getTime();
+  }, [date, hour, minute]);
+
+  const preview = useMemo(
+    () => ({
+      id: "preview",
+      name: name || "Your event name",
+      type,
+      customLabel: type === "custom" ? customLabel || "Custom" : undefined,
+      timeOfDay,
+      cover,
+      date: dateWithTime,
+      venue: venue || "Venue · City",
+      message: message || COPY_SAMPLES[type],
+      dressCode,
+      schedule,
+      template,
+      hostName: hostName || "Your name",
+      shotsPerGuest: 24,
+      revealAt: dateWithTime + 24 * 3600 * 1000,
+      isPrivate: true,
+      rsvps: [],
+      photos: [],
+      invited: 0,
+      views: 0,
+    }),
+    [name, type, customLabel, timeOfDay, cover, dateWithTime, venue, message, dressCode, schedule, template, hostName]
+  );
+
+  const next = () => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    if (quickMode && step === 0) {
+      setStep(TOTAL_STEPS - 1);
+      return;
+    }
+    setStep((v) => Math.min(v + 1, TOTAL_STEPS - 1));
+  };
+  const back = () => {
+    if (step === 0) {
+      router.back();
+      return;
+    }
+    setStep((v) => Math.max(v - 1, 0));
+  };
+
+  const submit = async () => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    const ev = await createEvent({
+      name: name || "Untitled event",
+      type,
+      customLabel: type === "custom" ? customLabel || "Custom" : undefined,
+      timeOfDay,
+      cover,
+      date: dateWithTime,
+      venue: venue || "TBD",
+      message: message || COPY_SAMPLES[type],
+      dressCode,
+      schedule,
+      template,
+      hostName: hostName || "Host",
+      shotsPerGuest: 24,
+      revealAt: dateWithTime + 24 * 3600 * 1000,
+      isPrivate: true,
+    });
+    router.dismiss();
+    router.push(`/event/${ev.id}` as never);
+  };
+
+  const generateCopy = () => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setMessage(COPY_SAMPLES[type]);
+  };
+
+  const pickCustomCover = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission needed", "Please allow photo library access to upload a cover.");
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 5],
+        quality: 0.9,
+      });
+      if (!res.canceled && res.assets[0]) {
+        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+        setCover(res.assets[0].uri);
+      }
+    } catch (e) {
+      console.log("[cover-pick]", e);
+    }
+  };
+
+  const addScheduleItem = () => {
+    if (!schedTime.trim() || !schedTitle.trim()) return;
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    setSchedule((prev) => [...prev, { id: `s_${Date.now()}`, time: schedTime.trim(), title: schedTitle.trim() }]);
+    setSchedTime("");
+    setSchedTitle("");
+  };
+  const addSchedulePreset = (time: string, title: string) => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    setSchedule((prev) => [...prev, { id: `s_${Date.now()}_${Math.random()}`, time, title }]);
+  };
+  const removeScheduleItem = (id: string) => {
+    setSchedule((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const setTime = (h: number, m: number) => {
+    setHour(h);
+    setMinute(m);
+    const d = new Date(date);
+    d.setHours(h, m, 0, 0);
+    setTimeOfDay(timeOfDayFromDate(d.getTime()));
+  };
+
+  const pickTimePreset = (id: TimeOfDayId) => {
+    setTimeOfDay(id);
+    const presets: Record<TimeOfDayId, [number, number]> = {
+      morning: [9, 0],
+      afternoon: [13, 30],
+      evening: [18, 30],
+      night: [21, 0],
+    };
+    const [h, m] = presets[id];
+    setHour(h);
+    setMinute(m);
+  };
+
+  return (
+    <View style={s.container}>
+      <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
+        <View style={s.topBar}>
+          <Pressable onPress={back} style={s.topBtn} hitSlop={10}>
+            <ChevronLeft color={C.text} size={22} />
+          </Pressable>
+          <View style={s.progressRow}>
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <View key={i} style={[s.pip, { backgroundColor: i <= step ? C.pink : C.hair }]} />
+            ))}
+          </View>
+          <View style={s.topBtn} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ padding: 18, paddingBottom: 130 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {step === 0 ? (
+            <>
+              <StepHeader step={`STEP 1 OF ${TOTAL_STEPS}`} title="The basics" />
+
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                  setQuickMode((v) => !v);
+                }}
+                style={[s.quickCard, quickMode ? s.quickCardActive : null]}
+              >
+                <View style={[s.quickIcon, quickMode ? { backgroundColor: C.pink } : null]}>
+                  <Zap color={quickMode ? C.text : C.pinkHi} size={20} fill={quickMode ? C.text : "transparent"} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.quickTitle}>Quick create in 60 seconds</Text>
+                  <Text style={s.quickSub}>
+                    {quickMode
+                      ? "We'll use smart defaults — tweak anything later."
+                      : "Fill basics, we'll auto-pick template, schedule & rules."}
+                  </Text>
+                </View>
+                <View style={[s.quickToggle, quickMode ? s.quickToggleOn : null]}>
+                  <View style={[s.quickKnob, quickMode ? s.quickKnobOn : null]} />
+                </View>
+              </Pressable>
+              <Text style={s.label}>Event type</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
+              >
+                {EVENT_TYPES.map((t) => (
+                  <Chip key={t.id} label={t.label} icon={t.emoji} active={type === t.id} onPress={() => setType(t.id)} />
+                ))}
+              </ScrollView>
+
+              {type === "custom" ? (
+                <>
+                  <Text style={s.label}>Custom event type</Text>
+                  <TextInput
+                    placeholder="e.g. Housewarming · Reunion · Engagement"
+                    placeholderTextColor={C.mute}
+                    value={customLabel}
+                    onChangeText={setCustomLabel}
+                    style={s.input}
+                  />
+                </>
+              ) : null}
+
+              <Text style={s.label}>Event name</Text>
+              <TextInput
+                placeholder="e.g. Amara & Kofi"
+                placeholderTextColor={C.mute}
+                value={name}
+                onChangeText={setName}
+                style={s.input}
+              />
+
+              <Text style={s.label}>Hosted by</Text>
+              <TextInput
+                placeholder="Your name(s)"
+                placeholderTextColor={C.mute}
+                value={hostName}
+                onChangeText={setHostName}
+                style={s.input}
+              />
+
+              <Text style={s.label}>Venue</Text>
+              <TextInput
+                placeholder="e.g. Skylounge Rooftop · Lagos"
+                placeholderTextColor={C.mute}
+                value={venue}
+                onChangeText={setVenue}
+                style={s.input}
+              />
+
+              <Text style={s.label}>Pick a date</Text>
+              <Calendar value={dateWithTime} onChange={setDate} minDate={Date.now()} />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
+                <Clock color={C.gold} size={14} />
+                <Text style={s.dateLabel}>
+                  {new Date(dateWithTime).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+                  {" · "}
+                  {new Date(dateWithTime).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                </Text>
+              </View>
+
+              <Text style={s.label}>Time of day</Text>
+              <View style={s.todRow}>
+                {TIME_OF_DAY.map((t) => {
+                  const active = timeOfDay === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => pickTimePreset(t.id)}
+                      style={[s.todChip, active ? s.todChipActive : null]}
+                    >
+                      <Text style={s.todEmoji}>{t.emoji}</Text>
+                      <Text style={[s.todLabel, active ? { color: C.text } : null]}>{t.label}</Text>
+                      <Text style={[s.todHint, active ? { color: "rgba(255,255,255,0.85)" } : null]}>{t.hint}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={s.label}>Fine-tune time</Text>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <View style={s.timeBox}>
+                  <Text style={s.timeBoxLabel}>Hour</Text>
+                  <View style={s.timeBoxRow}>
+                    <Pressable onPress={() => setTime((hour + 23) % 24, minute)} style={s.timeStep}>
+                      <Text style={s.timeStepText}>-</Text>
+                    </Pressable>
+                    <Text style={s.timeValue}>{String(hour).padStart(2, "0")}</Text>
+                    <Pressable onPress={() => setTime((hour + 1) % 24, minute)} style={s.timeStep}>
+                      <Text style={s.timeStepText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={s.timeBox}>
+                  <Text style={s.timeBoxLabel}>Min</Text>
+                  <View style={s.timeBoxRow}>
+                    <Pressable onPress={() => setTime(hour, (minute + 45) % 60)} style={s.timeStep}>
+                      <Text style={s.timeStepText}>-</Text>
+                    </Pressable>
+                    <Text style={s.timeValue}>{String(minute).padStart(2, "0")}</Text>
+                    <Pressable onPress={() => setTime(hour, (minute + 15) % 60)} style={s.timeStep}>
+                      <Text style={s.timeStepText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </>
+          ) : null}
+
+          {step === 1 ? (
+            <>
+              <StepHeader step={`STEP 2 OF ${TOTAL_STEPS}`} title="Cover & details" />
+
+              <Text style={s.label}>Cover photo</Text>
+              <Pressable onPress={pickCustomCover} style={s.uploadCard}>
+                <View style={s.uploadIcon}>
+                  <ImagePlus color={C.pinkHi} size={20} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.uploadTitle}>Upload from your gallery</Text>
+                  <Text style={s.uploadSub}>Pick any photo from your device</Text>
+                </View>
+                <ChevronRight color={C.mute} size={18} />
+              </Pressable>
+
+              {cover && !COVER_CATEGORIES.some((cat) => cat.images.includes(cover)) ? (
+                <View style={s.customCoverWrap}>
+                  <Image source={{ uri: cover }} style={s.customCoverImg} contentFit="cover" />
+                  <View style={s.customCoverTag}>
+                    <Check color={C.text} size={12} />
+                    <Text style={s.customCoverTagText}>Your upload</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <Text style={[s.label, { marginTop: 18 }]}>Browse by category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
+              >
+                {COVER_CATEGORIES.map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={c.label}
+                    icon={c.emoji}
+                    active={coverCategory === c.id}
+                    onPress={() => setCoverCategory(c.id)}
+                  />
+                ))}
+              </ScrollView>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingVertical: 6 }}
+                style={{ marginHorizontal: -18, paddingHorizontal: 18, marginTop: 8 }}
+              >
+                {visibleCovers.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setCover(c)}
+                    style={[s.coverThumb, cover === c ? s.coverThumbActive : null]}
+                  >
+                    <Image source={{ uri: c }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    {cover === c ? (
+                      <View style={s.coverCheck}>
+                        <Check color={C.text} size={16} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+                <Text style={s.label}>Message to guests</Text>
+                <Pressable onPress={generateCopy} style={s.aiBtn}>
+                  <Wand2 color={C.pinkHi} size={14} />
+                  <Text style={s.aiBtnText}>AI write</Text>
+                </Pressable>
+              </View>
+              <TextInput
+                placeholder="A warm, personal note for your guests…"
+                placeholderTextColor={C.mute}
+                value={message}
+                onChangeText={setMessage}
+                style={[s.input, { height: 110, textAlignVertical: "top" }]}
+                multiline
+              />
+
+              <Text style={s.label}>Dress code (optional)</Text>
+              <TextInput
+                placeholder="e.g. Black tie · Glam glitter"
+                placeholderTextColor={C.mute}
+                value={dressCode}
+                onChangeText={setDressCode}
+                style={s.input}
+              />
+            </>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <StepHeader step={`STEP 3 OF ${TOTAL_STEPS}`} title="Event schedule" />
+              <Text style={s.helperText}>
+                Build a run-of-show so guests know what's happening when. Add as many moments as you like.
+              </Text>
+
+              <Text style={s.label}>Quick add</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
+              >
+                {[
+                  { t: "Doors open", time: "6:00 PM" },
+                  { t: "Ceremony", time: "4:00 PM" },
+                  { t: "Cocktails", time: "5:30 PM" },
+                  { t: "Dinner", time: "7:00 PM" },
+                  { t: "Toasts", time: "8:30 PM" },
+                  { t: "Cake cutting", time: "9:00 PM" },
+                  { t: "First dance", time: "9:30 PM" },
+                  { t: "DJ set", time: "10:00 PM" },
+                  { t: "After-party", time: "12:00 AM" },
+                ].map((p) => (
+                  <Pressable key={p.t} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
+                    <Plus color={C.pinkHi} size={13} />
+                    <Text style={s.presetChipText}>{p.t}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <Text style={s.label}>Your run-of-show</Text>
+              <View style={{ gap: 10 }}>
+                {schedule.map((it, idx) => (
+                  <View key={it.id} style={s.schedItemBig}>
+                    <View style={s.schedIndexCol}>
+                      <Text style={s.schedIndex}>{String(idx + 1).padStart(2, "0")}</Text>
+                      {idx < schedule.length - 1 ? <View style={s.schedStem} /> : null}
+                    </View>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <View style={s.schedTimeBadge}>
+                        <Clock color={C.gold} size={11} />
+                        <Text style={s.schedTimeText}>{it.time}</Text>
+                      </View>
+                      <Text style={s.schedItemTitleBig}>{it.title}</Text>
+                    </View>
+                    <Pressable onPress={() => removeScheduleItem(it.id)} hitSlop={8} style={s.schedRemove}>
+                      <X color={C.danger} size={16} />
+                    </Pressable>
+                  </View>
+                ))}
+                {schedule.length === 0 ? (
+                  <View style={s.emptySchedule}>
+                    <Sparkles color={C.mute} size={16} />
+                    <Text style={s.emptyScheduleText}>No items yet</Text>
+                    <Text style={s.emptyScheduleSub}>Tap a quick-add chip above or write your own below.</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Text style={s.label}>Add your own</Text>
+              <View style={s.schedInputRow}>
+                <TextInput
+                  placeholder="7:00 PM"
+                  placeholderTextColor={C.mute}
+                  value={schedTime}
+                  onChangeText={setSchedTime}
+                  style={[s.input, { flex: 0.7 }]}
+                />
+                <TextInput
+                  placeholder="Reception & dinner"
+                  placeholderTextColor={C.mute}
+                  value={schedTitle}
+                  onChangeText={setSchedTitle}
+                  style={[s.input, { flex: 1.3 }]}
+                />
+              </View>
+              <Pressable
+                onPress={addScheduleItem}
+                disabled={!schedTime.trim() || !schedTitle.trim()}
+                style={[s.addRowBtn, { opacity: !schedTime.trim() || !schedTitle.trim() ? 0.4 : 1 }]}
+              >
+                <Plus color={C.text} size={18} />
+                <Text style={s.addRowBtnText}>Add to schedule</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {step === 3 ? (
+            <>
+              <StepHeader step={`STEP 4 OF ${TOTAL_STEPS}`} title="Pick a template" />
+              <Text style={s.helperText}>
+                {TEMPLATES.length}+ unique designs across {TEMPLATE_CATEGORIES.length} aesthetics — pick a vibe.
+              </Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                style={{ marginHorizontal: -18, paddingHorizontal: 18, marginTop: 8 }}
+              >
+                <Chip label="All" icon="✦" active={tplCategory === "all"} onPress={() => setTplCategory("all")} />
+                {TEMPLATE_CATEGORIES.map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={c.label}
+                    icon={c.emoji}
+                    active={tplCategory === c.id}
+                    onPress={() => setTplCategory(c.id)}
+                  />
+                ))}
+              </ScrollView>
+
+              <View style={s.tplGrid}>
+                {visibleTemplates.map((t) => {
+                  const active = template === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setTemplate(t.id);
+                      }}
+                      style={[s.tplCard, active ? s.tplCardActive : null]}
+                    >
+                      <LinearGradient
+                        colors={t.bg}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={s.tplCardSwatch}
+                      >
+                        <Text style={[s.tplCardMono, { color: t.ink, fontStyle: t.serif ? "italic" : "normal" }]}>
+                          {t.name.charAt(0)}
+                        </Text>
+                        {active ? (
+                          <View style={s.tplCardCheck}>
+                            <Check color={C.text} size={14} />
+                          </View>
+                        ) : null}
+                      </LinearGradient>
+                      <Text style={s.tplCardName} numberOfLines={1}>{t.name}</Text>
+                      <Text style={s.tplCardTagline} numberOfLines={1}>{t.tagline}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
+          {step === 4 ? (
+            <>
+              <StepHeader step={`STEP 5 OF ${TOTAL_STEPS}`} title="Preview & publish" />
+              <InvitationCard event={preview as never} template={tpl} />
+              <View style={{ gap: 8, marginTop: 16, alignItems: "center" }}>
+                <Sparkles color={C.gold} size={18} />
+                <Text style={s.previewNote}>
+                  After publishing you'll get a shareable link, QR, and the disposable camera unlocks for guests.
+                </Text>
+              </View>
+            </>
+          ) : null}
+        </ScrollView>
+
+        <View style={s.footer}>
+          {step > 0 ? <GhostButton title="Back" onPress={back} style={{ flex: 1 }} /> : null}
+          {step < TOTAL_STEPS - 1 ? (
+            <PrimaryButton title="Continue" icon={ChevronRight} onPress={next} style={{ flex: 1.4 }} />
+          ) : (
+            <PrimaryButton title="Publish event" icon={Check} onPress={submit} style={{ flex: 1.4 }} />
+          )}
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 8 },
+  topBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 999 },
+  progressRow: { flexDirection: "row", gap: 6 },
+  pip: { width: 22, height: 4, borderRadius: 4 },
+  kicker: { color: C.pinkHi, letterSpacing: 2.5, fontWeight: "800" as const, fontSize: 11 },
+  title: { color: C.text, fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.5 },
+  label: { color: C.subtext, fontSize: 13, fontWeight: "600" as const, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },
+  helperText: { color: C.mute, fontSize: 12, lineHeight: 17, marginTop: -4 },
+  input: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: C.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  dateLabel: { color: C.text, fontSize: 14, fontWeight: "600" as const },
+  todRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  todChip: {
+    width: "48%",
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.hair,
+    gap: 2,
+  },
+  todChipActive: { backgroundColor: C.pink, borderColor: C.pink },
+  todEmoji: { fontSize: 20, marginBottom: 2 },
+  todLabel: { color: C.text, fontSize: 14, fontWeight: "700" as const },
+  todHint: { color: C.subtext, fontSize: 11 },
+  timeBox: {
+    flex: 1,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.hair,
+    padding: 12,
+    gap: 8,
+  },
+  timeBoxLabel: { color: C.mute, fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
+  timeBoxRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  timeStep: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: C.cardHi,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeStepText: { color: C.text, fontSize: 18, fontWeight: "700" as const },
+  timeValue: { color: C.text, fontSize: 22, fontWeight: "800" as const, letterSpacing: -0.5 },
+  uploadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,45,122,0.4)",
+    borderStyle: "dashed",
+  },
+  uploadIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,45,122,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uploadTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  uploadSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
+  customCoverWrap: {
+    marginTop: 10,
+    height: 180,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: C.pink,
+    backgroundColor: C.card,
+  },
+  customCoverImg: { width: "100%", height: "100%" },
+  customCoverTag: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: C.pink,
+    borderRadius: 999,
+  },
+  customCoverTagText: { color: C.text, fontWeight: "700" as const, fontSize: 11 },
+  coverThumb: { width: 110, height: 140, borderRadius: 16, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
+  coverThumbActive: { borderColor: C.pink },
+  coverCheck: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: C.pink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,45,122,0.12)",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,45,122,0.3)",
+  },
+  aiBtnText: { color: C.pinkHi, fontWeight: "700" as const, fontSize: 12 },
+  presetChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.card,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  presetChipText: { color: C.text, fontSize: 13, fontWeight: "600" as const },
+  schedItemBig: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  schedIndexCol: { alignItems: "center", width: 28 },
+  schedIndex: { color: C.pinkHi, fontWeight: "800" as const, fontSize: 13, letterSpacing: 0.5 },
+  schedStem: { width: 1, flex: 1, backgroundColor: C.hair, marginTop: 4 },
+  schedTimeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "rgba(244,201,123,0.16)",
+  },
+  schedTimeText: { color: C.gold, fontWeight: "700" as const, fontSize: 11, letterSpacing: 0.3 },
+  schedItemTitleBig: { color: C.text, fontSize: 15, fontWeight: "600" as const },
+  schedRemove: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,90,107,0.12)",
+    alignSelf: "flex-start",
+  },
+  emptySchedule: {
+    alignItems: "center",
+    gap: 6,
+    padding: 22,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: C.hair,
+  },
+  emptyScheduleText: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  emptyScheduleSub: { color: C.mute, fontSize: 12, textAlign: "center" },
+  schedInputRow: { flexDirection: "row", gap: 6, alignItems: "center" },
+  addRowBtn: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: C.pink,
+  },
+  addRowBtnText: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  tplGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+  },
+  tplCard: {
+    width: "31%",
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.hair,
+    gap: 4,
+  },
+  tplCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
+  tplCardSwatch: {
+    width: "100%",
+    aspectRatio: 0.78,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  tplCardMono: { fontSize: 32, fontWeight: "300" as const, opacity: 0.85 },
+  tplCardCheck: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: C.pink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tplCardName: { color: C.text, fontSize: 12, fontWeight: "700" as const, paddingHorizontal: 4, marginTop: 4 },
+  tplCardTagline: { color: C.mute, fontSize: 10, paddingHorizontal: 4, paddingBottom: 4 },
+  previewNote: { color: C.subtext, fontSize: 13, textAlign: "center", lineHeight: 19, paddingHorizontal: 24 },
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 18,
+    flexDirection: "row",
+    gap: 10,
+    backgroundColor: "rgba(10,10,11,0.92)",
+    borderTopWidth: 1,
+    borderTopColor: C.hair,
+  },
+  quickCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    backgroundColor: C.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.hair,
+    marginBottom: 4,
+  },
+  quickCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.08)" },
+  quickIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,45,122,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickTitle: { color: C.text, fontWeight: "800" as const, fontSize: 14 },
+  quickSub: { color: C.subtext, fontSize: 12, lineHeight: 16 },
+  quickToggle: {
+    width: 42,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: C.hair,
+    padding: 2,
+    justifyContent: "center",
+  },
+  quickToggleOn: { backgroundColor: C.pink },
+  quickKnob: { width: 20, height: 20, borderRadius: 999, backgroundColor: C.text },
+  quickKnobOn: { transform: [{ translateX: 18 }] },
+});
