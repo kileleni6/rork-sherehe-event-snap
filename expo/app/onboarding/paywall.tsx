@@ -11,7 +11,7 @@ import { C } from "@/constants/colors";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
-type TierId = "small" | "medium" | "large";
+type TierId = "starter" | "celebration" | "premium" | "large" | "enterprise" | "super";
 
 interface Tier {
   id: TierId;
@@ -22,12 +22,17 @@ interface Tier {
   guests: string;
   storage: string;
   highlight?: boolean;
+  free?: boolean;
+  contact?: boolean;
 }
 
 const TIERS: Tier[] = [
-  { id: "small", name: "Intimate", blurb: "Up to 25 guests", price: "$19", per: "one-time", guests: "25 guests", storage: "5 GB" },
-  { id: "medium", name: "Celebration", blurb: "Up to 100 guests", price: "$49", per: "one-time", guests: "100 guests", storage: "25 GB", highlight: true },
-  { id: "large", name: "Grand", blurb: "Up to 500 guests", price: "$129", per: "one-time", guests: "500 guests", storage: "Unlimited" },
+  { id: "starter", name: "Starter", blurb: "Up to 5 guests", price: "Free", per: "forever", guests: "5 guests", storage: "1 GB", free: true },
+  { id: "celebration", name: "Celebration", blurb: "Up to 100 guests", price: "$24.99", per: "one-time", guests: "100 guests", storage: "25 GB", highlight: true },
+  { id: "premium", name: "Premium Event", blurb: "Up to 250 guests", price: "$89.99", per: "one-time", guests: "250 guests", storage: "75 GB" },
+  { id: "large", name: "Large Event", blurb: "Up to 500 guests", price: "$149.99", per: "one-time", guests: "500 guests", storage: "150 GB" },
+  { id: "enterprise", name: "Enterprise Event", blurb: "Up to 1,000 guests", price: "$299.99", per: "one-time", guests: "1,000 guests", storage: "500 GB" },
+  { id: "super", name: "Super Event", blurb: "Up to 2,000 guests", price: "$499.99+", per: "custom", guests: "2,000+ guests", storage: "Unlimited", contact: true },
 ];
 
 const PERKS = [
@@ -42,7 +47,7 @@ export default function OnboardingPaywallScreen() {
   const router = useRouter();
   const { update } = useOnboarding();
   const { setProfile } = useEvents();
-  const [tier, setTier] = useState<TierId>("medium");
+  const [tier, setTier] = useState<TierId>("celebration");
 
   const shine = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -60,8 +65,14 @@ export default function OnboardingPaywallScreen() {
     router.push("/onboarding/auth" as never);
   };
 
-  const subscribe = () => goAuth(true);
+  const selected = TIERS.find((t) => t.id === tier);
+  const subscribe = () => goAuth(!(selected?.free));
   const skip = () => goAuth(false);
+  const ctaTitle = selected?.contact
+    ? `Contact sales · ${selected.name}`
+    : selected?.free
+      ? `Start free · ${selected.name}`
+      : `Unlock ${selected?.name} · ${selected?.price}`;
 
   return (
     <OnboardShell
@@ -73,13 +84,15 @@ export default function OnboardingPaywallScreen() {
       footer={
         <View style={{ gap: 10 }}>
           <PrimaryButton
-            title={`Unlock ${TIERS.find((t) => t.id === tier)?.name} · ${TIERS.find((t) => t.id === tier)?.price}`}
+            title={ctaTitle}
             icon={Crown}
             onPress={subscribe}
           />
-          <Pressable onPress={skip} hitSlop={8} style={{ alignSelf: "center", paddingVertical: 4 }}>
-            <Text style={styles.skip}>Start free — single event</Text>
-          </Pressable>
+          {!selected?.free ? (
+            <Pressable onPress={skip} hitSlop={8} style={{ alignSelf: "center", paddingVertical: 4 }}>
+              <Text style={styles.skip}>Start free — Starter plan</Text>
+            </Pressable>
+          ) : null}
         </View>
       }
     >
@@ -136,7 +149,7 @@ export default function OnboardingPaywallScreen() {
                 </View>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.tierPrice}>{t.price}</Text>
+                <Text style={[styles.tierPrice, t.free ? { color: C.gold } : null]}>{t.price}</Text>
                 <Text style={styles.tierPer}>{t.per}</Text>
                 <View style={[styles.radio, active ? styles.radioOn : null]}>
                   {active ? <Check color={C.text} size={14} /> : null}
