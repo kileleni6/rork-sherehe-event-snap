@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Check, ChevronLeft, Copy, Link as LinkIcon, Mail, MessageCircle, Share2 } from "lucide-react-native";
+import { Calendar as CalendarIcon, Check, ChevronLeft, Copy, Link as LinkIcon, MessageCircle, Share2, Ticket } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { InvitationCard } from "@/components/InvitationCard";
 import { Card, Chip, GhostButton, PrimaryButton, SectionTitle } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { addToCalendar } from "@/lib/calendar";
 import { getTemplate, useEvents } from "@/providers/EventsProvider";
 import type { RsvpStatus } from "@/types/event";
 
@@ -25,6 +26,7 @@ export default function InviteScreen() {
   const [status, setStatus] = useState<RsvpStatus>("yes");
   const [note, setNote] = useState<string>("");
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [lastRsvpId, setLastRsvpId] = useState<string | null>(null);
 
   const tpl = useMemo(() => (event ? getTemplate(event.template) : undefined), [event]);
 
@@ -41,13 +43,33 @@ export default function InviteScreen() {
 
   const submit = async () => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    await addRsvp(event.id, {
+    const r = await addRsvp(event.id, {
       name: name || "Guest",
       status,
       guests: status === "yes" ? guests : 0,
       note: note || undefined,
     });
+    setLastRsvpId(r.id);
     setSubmitted(true);
+  };
+
+  const openPass = () => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    if (lastRsvpId) {
+      router.push(`/pass/${event.id}?rsvp=${lastRsvpId}` as never);
+    }
+  };
+
+  const onAddCalendar = async () => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    await addToCalendar({
+      id: event.id,
+      title: event.name,
+      startTs: event.date,
+      venue: event.venue,
+      description: event.message,
+      url,
+    });
   };
 
   const share = async (target: "share" | "copy") => {
@@ -103,6 +125,37 @@ export default function InviteScreen() {
         <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
           <InvitationCard event={event} template={tpl} />
 
+          <View style={s.howCard}>
+            <Text style={s.howKicker}>HOW IT WORKS</Text>
+            <View style={s.howRow}>
+              <View style={s.howNum}><Text style={s.howNumText}>1</Text></View>
+              <Text style={s.howText}>RSVP below — you'll get a personal pass with a QR code.</Text>
+            </View>
+            <View style={s.howRow}>
+              <View style={s.howNum}><Text style={s.howNumText}>2</Text></View>
+              <Text style={s.howText}>Show your pass at the door so the host can check you in.</Text>
+            </View>
+            <View style={s.howRow}>
+              <View style={s.howNum}><Text style={s.howNumText}>3</Text></View>
+              <Text style={s.howText}>
+                Capture up to {event.shotsPerGuest === 0 ? "unlimited" : event.shotsPerGuest} disposable-camera shots during the event.
+              </Text>
+            </View>
+            <View style={s.howRow}>
+              <View style={s.howNum}><Text style={s.howNumText}>4</Text></View>
+              <Text style={s.howText}>The shared gallery unlocks after the reveal — download and relive every memory.</Text>
+            </View>
+          </View>
+
+          <Pressable onPress={onAddCalendar} style={s.calRow}>
+            <CalendarIcon color={C.gold} size={18} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.calRowText}>Add to my calendar</Text>
+              <Text style={s.calRowSub}>So you don't miss a thing</Text>
+            </View>
+            <Text style={s.calRowHint}>Open</Text>
+          </Pressable>
+
           <SectionTitle style={{ marginTop: 28 }}>Share the moment</SectionTitle>
           <Text style={s.muteSub}>Guests can RSVP without installing the app.</Text>
 
@@ -129,13 +182,18 @@ export default function InviteScreen() {
           <Text style={s.muteSub}>This is exactly what your guests see.</Text>
 
           {submitted ? (
-            <Card style={{ alignItems: "center", padding: 24, gap: 8, marginTop: 14 }}>
+            <Card style={{ alignItems: "center", padding: 24, gap: 10, marginTop: 14 }}>
               <View style={s.successCircle}>
                 <Check color={C.text} size={28} />
               </View>
               <Text style={s.successTitle}>You're on the list ✦</Text>
-              <Text style={s.successSub}>We've added your RSVP. The disposable camera unlocks at the event.</Text>
-              <GhostButton title="Add another response" onPress={() => setSubmitted(false)} style={{ marginTop: 10 }} />
+              <Text style={s.successSub}>
+                We've created your personal pass. Save it — you'll show it at the door.
+              </Text>
+              {lastRsvpId ? (
+                <PrimaryButton title="View my pass" icon={Ticket} onPress={openPass} style={{ marginTop: 8 }} />
+              ) : null}
+              <GhostButton title="Add another response" onPress={() => { setSubmitted(false); setLastRsvpId(null); }} style={{ marginTop: 4 }} />
             </Card>
           ) : (
             <Card style={{ gap: 12, marginTop: 14 }}>
@@ -270,6 +328,26 @@ const s = StyleSheet.create({
   },
   successTitle: { color: C.text, fontSize: 18, fontWeight: "800" as const },
   successSub: { color: C.subtext, fontSize: 13, textAlign: "center", lineHeight: 19, paddingHorizontal: 12 },
+  howCard: {
+    marginTop: 22, padding: 16, borderRadius: 18,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair, gap: 12,
+  },
+  howKicker: { color: C.pinkHi, fontSize: 10, letterSpacing: 2, fontWeight: "800" as const },
+  howRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  howNum: {
+    width: 24, height: 24, borderRadius: 999, backgroundColor: "rgba(255,45,122,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  howNumText: { color: C.pinkHi, fontSize: 11, fontWeight: "800" as const },
+  howText: { color: C.text, fontSize: 13, lineHeight: 18, flex: 1 },
+  calRow: {
+    marginTop: 14, flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 18,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair,
+  },
+  calRowText: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  calRowSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
+  calRowHint: { color: C.pinkHi, fontWeight: "800" as const, fontSize: 12, letterSpacing: 0.4 },
   footer: {
     position: "absolute",
     bottom: 0,

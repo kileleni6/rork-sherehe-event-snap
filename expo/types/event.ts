@@ -10,6 +10,12 @@ export interface Rsvp {
   guests: number;
   note?: string;
   createdAt: number;
+  /** short token guests show at the door (last 6 of id, uppercased) */
+  passCode: string;
+  /** epoch ms when host checked the guest in */
+  checkedInAt?: number;
+  /** number of shots the guest has used */
+  shotsUsed?: number;
 }
 
 export interface Photo {
@@ -43,8 +49,14 @@ export interface Event {
   template: TemplateId;
   hostName: string;
   // camera rules
-  shotsPerGuest: number;
-  revealAt: number; // epoch ms
+  shotsPerGuest: number; // 0 = unlimited
+  revealAt: number; // epoch ms — when gallery becomes viewable
+  revealMode?: "start" | "plus1h" | "plus6h" | "plus24h" | "custom";
+  uploadPermission?: "all" | "rsvp" | "approved";
+  privacy?: "private" | "public" | "passcode";
+  passcode?: string;
+  visibility?: "all_after_reveal" | "rsvp_only" | "host_only";
+  checkInEnabled?: boolean;
   isPrivate: boolean;
   // data
   rsvps: Rsvp[];

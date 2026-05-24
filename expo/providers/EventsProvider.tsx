@@ -41,13 +41,18 @@ function seedEvents(): Event[] {
       hostName: "Amara K.",
       shotsPerGuest: 24,
       revealAt: now + 13 * day,
+      revealMode: "plus24h",
+      uploadPermission: "all",
+      privacy: "private",
+      visibility: "all_after_reveal",
+      checkInEnabled: true,
       isPrivate: true,
       rsvps: [
-        { id: "r1", name: "Zuri Mensah", status: "yes", guests: 2, note: "Can't wait!", createdAt: now - day },
-        { id: "r2", name: "Tariq Bello", status: "yes", guests: 1, createdAt: now - day * 2 },
-        { id: "r3", name: "Naledi Okafor", status: "maybe", guests: 1, createdAt: now - day * 3 },
-        { id: "r4", name: "Imani Diallo", status: "yes", guests: 2, createdAt: now - day * 4 },
-        { id: "r5", name: "Kwame Asante", status: "no", guests: 0, note: "Sending love from Accra ❤️", createdAt: now - day * 5 },
+        { id: "r1", name: "Zuri Mensah", status: "yes", guests: 2, note: "Can't wait!", createdAt: now - day, passCode: "ZURI24" },
+        { id: "r2", name: "Tariq Bello", status: "yes", guests: 1, createdAt: now - day * 2, passCode: "TARI18" },
+        { id: "r3", name: "Naledi Okafor", status: "maybe", guests: 1, createdAt: now - day * 3, passCode: "NALE02" },
+        { id: "r4", name: "Imani Diallo", status: "yes", guests: 2, createdAt: now - day * 4, passCode: "IMAN77" },
+        { id: "r5", name: "Kwame Asante", status: "no", guests: 0, note: "Sending love from Accra ❤️", createdAt: now - day * 5, passCode: "KWAM31" },
       ],
       photos: STOCK_SHOTS.slice(0, 6).map((u, i) => ({
         id: `p${i}`,
@@ -78,10 +83,15 @@ function seedEvents(): Event[] {
       hostName: "Layla",
       shotsPerGuest: 20,
       revealAt: now + 4 * day,
+      revealMode: "plus24h",
+      uploadPermission: "all",
+      privacy: "public",
+      visibility: "all_after_reveal",
+      checkInEnabled: false,
       isPrivate: false,
       rsvps: [
-        { id: "r1", name: "Sade", status: "yes", guests: 1, createdAt: now - 86400000 },
-        { id: "r2", name: "Ade", status: "yes", guests: 2, createdAt: now - 86400000 },
+        { id: "r1", name: "Sade", status: "yes", guests: 1, createdAt: now - 86400000, passCode: "SADE10" },
+        { id: "r2", name: "Ade", status: "yes", guests: 2, createdAt: now - 86400000, passCode: "ADE220" },
       ],
       photos: [],
       invited: 42,
@@ -176,11 +186,34 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
   );
 
   const addRsvp = useCallback(
-    async (eventId: string, rsvp: Omit<Rsvp, "id" | "createdAt">) => {
-      const r: Rsvp = { ...rsvp, id: `r_${Date.now()}`, createdAt: Date.now() };
+    async (eventId: string, rsvp: Omit<Rsvp, "id" | "createdAt" | "passCode">): Promise<Rsvp> => {
+      const id = `r_${Date.now()}`;
+      const passCode = (rsvp.name.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "GUEST")
+        + String(Math.floor(Math.random() * 90) + 10);
+      const r: Rsvp = { ...rsvp, id, createdAt: Date.now(), passCode, shotsUsed: 0 };
       const next = events.map((e) =>
         e.id === eventId
           ? { ...e, rsvps: [r, ...e.rsvps], invited: Math.max(e.invited, e.rsvps.length + 1) }
+          : e
+      );
+      await persist(next);
+      qc.setQueryData(["events"], next);
+      return r;
+    },
+    [events, persist, qc]
+  );
+
+  /** Mark a guest checked-in (or undo). Pass `at = 0` to undo. */
+  const checkInGuest = useCallback(
+    async (eventId: string, rsvpId: string, at: number = Date.now()) => {
+      const next = events.map((e) =>
+        e.id === eventId
+          ? {
+              ...e,
+              rsvps: e.rsvps.map((r) =>
+                r.id === rsvpId ? { ...r, checkedInAt: at > 0 ? at : undefined } : r
+              ),
+            }
           : e
       );
       await persist(next);
@@ -250,6 +283,7 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     updateEvent,
     deleteEvent,
     addRsvp,
+    checkInGuest,
     addPhoto,
     removePhoto,
     unlockGallery,

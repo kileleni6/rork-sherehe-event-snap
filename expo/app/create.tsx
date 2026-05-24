@@ -4,14 +4,19 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
+  Camera as CameraIcon,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Eye,
   ImagePlus,
+  Lock,
   Plus,
   RefreshCw,
+  ScanLine,
   Sparkles,
+  Unlock,
   Wand2,
   X,
   Zap,
@@ -48,7 +53,42 @@ import {
 import { useEvents } from "@/providers/EventsProvider";
 import type { ScheduleItem } from "@/types/event";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
+
+type RevealMode = "start" | "plus1h" | "plus6h" | "plus24h" | "custom";
+type UploadPerm = "all" | "rsvp" | "approved";
+type Privacy = "private" | "public" | "passcode";
+type Visibility = "all_after_reveal" | "rsvp_only" | "host_only";
+
+const SHOT_PRESETS: { value: number; label: string; sub: string }[] = [
+  { value: 5, label: "5", sub: "Mini roll" },
+  { value: 10, label: "10", sub: "Disposable" },
+  { value: 24, label: "24", sub: "Classic film" },
+  { value: 36, label: "36", sub: "Full roll" },
+  { value: 0, label: "\u221E", sub: "Unlimited" },
+];
+
+const REVEAL_OPTIONS: { id: RevealMode; label: string; sub: string }[] = [
+  { id: "start", label: "At event start", sub: "Unlock the moment doors open" },
+  { id: "plus1h", label: "+1 hour after", sub: "A quick wait then the reveal" },
+  { id: "plus6h", label: "+6 hours after", sub: "Same-night reveal" },
+  { id: "plus24h", label: "+24 hours after", sub: "Classic disposable wait" },
+];
+
+function computeRevealAt(start: number, mode: RevealMode): number {
+  const hour = 3600 * 1000;
+  switch (mode) {
+    case "start":
+      return start;
+    case "plus1h":
+      return start + hour;
+    case "plus6h":
+      return start + 6 * hour;
+    case "plus24h":
+    default:
+      return start + 24 * hour;
+  }
+}
 
 const COPY_VARIANTS: Record<EventTypeId, string[]> = {
   wedding: [
@@ -401,6 +441,14 @@ export default function CreateEventScreen() {
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [quickMode, setQuickMode] = useState<boolean>(false);
   const [copyIndex, setCopyIndex] = useState<number>(0);
+  // Step 6 — rules
+  const [shotsPerGuest, setShotsPerGuest] = useState<number>(10);
+  const [revealMode, setRevealMode] = useState<RevealMode>("plus24h");
+  const [uploadPermission, setUploadPermission] = useState<UploadPerm>("all");
+  const [privacy, setPrivacy] = useState<Privacy>("private");
+  const [passcode, setPasscode] = useState<string>("");
+  const [visibility, setVisibility] = useState<Visibility>("all_after_reveal");
+  const [checkInEnabled, setCheckInEnabled] = useState<boolean>(false);
 
   const tpl = useMemo(() => TEMPLATES.find((t) => t.id === template) ?? TEMPLATES[0], [template]);
   const visibleTemplates = useMemo(
@@ -433,15 +481,21 @@ export default function CreateEventScreen() {
       schedule,
       template,
       hostName: hostName || "Your name",
-      shotsPerGuest: 24,
-      revealAt: dateWithTime + 24 * 3600 * 1000,
-      isPrivate: true,
+      shotsPerGuest,
+      revealAt: computeRevealAt(dateWithTime, revealMode),
+      revealMode,
+      uploadPermission,
+      privacy,
+      passcode: privacy === "passcode" ? passcode : undefined,
+      visibility,
+      checkInEnabled,
+      isPrivate: privacy !== "public",
       rsvps: [],
       photos: [],
       invited: 0,
       views: 0,
     }),
-    [name, type, customLabel, timeOfDay, cover, dateWithTime, venue, message, dressCode, schedule, template, hostName]
+    [name, type, customLabel, timeOfDay, cover, dateWithTime, venue, message, dressCode, schedule, template, hostName, shotsPerGuest, revealMode, uploadPermission, privacy, passcode, visibility, checkInEnabled]
   );
 
   const next = () => {
@@ -477,9 +531,15 @@ export default function CreateEventScreen() {
       schedule,
       template,
       hostName: hostName || "Host",
-      shotsPerGuest: 24,
-      revealAt: dateWithTime + 24 * 3600 * 1000,
-      isPrivate: true,
+      shotsPerGuest,
+      revealAt: computeRevealAt(dateWithTime, revealMode),
+      revealMode,
+      uploadPermission,
+      privacy,
+      passcode: privacy === "passcode" ? passcode : undefined,
+      visibility,
+      checkInEnabled,
+      isPrivate: privacy !== "public",
     });
     router.dismiss();
     router.push(`/event/${ev.id}` as never);
@@ -1058,8 +1118,216 @@ export default function CreateEventScreen() {
 
           {step === 4 ? (
             <>
-              <StepHeader step={`STEP 5 OF ${TOTAL_STEPS}`} title="Preview & publish" />
+              <StepHeader step={`STEP 5 OF ${TOTAL_STEPS}`} title="Camera & gallery rules" />
+              <Text style={s.helperText}>
+                Dial in how guests capture and when the gallery opens. You can change anything later.
+              </Text>
+
+              <Text style={s.label}>Shots per guest</Text>
+              <View style={s.shotsRow}>
+                {SHOT_PRESETS.map((p) => {
+                  const active = shotsPerGuest === p.value;
+                  return (
+                    <Pressable
+                      key={p.value}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setShotsPerGuest(p.value);
+                      }}
+                      style={[s.shotTile, active ? s.shotTileActive : null]}
+                    >
+                      <Text style={[s.shotValue, active ? { color: C.text } : null]}>{p.label}</Text>
+                      <Text style={[s.shotSub, active ? { color: "rgba(255,255,255,0.85)" } : null]}>{p.sub}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={s.inlineHint}>
+                <CameraIcon color={C.gold} size={13} />
+                <Text style={s.inlineHintText}>
+                  {shotsPerGuest === 0
+                    ? "Guests can shoot as many as they like."
+                    : `Each guest gets ${shotsPerGuest} shots — makes every frame intentional.`}
+                </Text>
+              </View>
+
+              <Text style={s.label}>Gallery reveal</Text>
+              <View style={{ gap: 8 }}>
+                {REVEAL_OPTIONS.map((opt) => {
+                  const active = revealMode === opt.id;
+                  const ts = computeRevealAt(dateWithTime, opt.id);
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setRevealMode(opt.id);
+                      }}
+                      style={[s.ruleRow, active ? s.ruleRowActive : null]}
+                    >
+                      <View style={[s.ruleDot, active ? s.ruleDotActive : null]}>
+                        {active ? <Check color={C.text} size={12} /> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.ruleTitle}>{opt.label}</Text>
+                        <Text style={s.ruleSub}>
+                          {opt.sub} · {new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })} ·{" "}
+                          {new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                        </Text>
+                      </View>
+                      <Unlock color={active ? C.pinkHi : C.mute} size={16} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={s.label}>Who can upload</Text>
+              <View style={s.segRow}>
+                {([
+                  { id: "all", label: "All guests" },
+                  { id: "rsvp", label: "RSVP'd only" },
+                  { id: "approved", label: "Approved" },
+                ] as { id: UploadPerm; label: string }[]).map((opt) => {
+                  const active = uploadPermission === opt.id;
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setUploadPermission(opt.id);
+                      }}
+                      style={[s.segBtn, active ? s.segBtnActive : null]}
+                    >
+                      <Text style={[s.segText, active ? { color: C.text } : null]}>{opt.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={s.label}>Privacy</Text>
+              <View style={{ gap: 8 }}>
+                {([
+                  { id: "private", label: "Private link", sub: "Only people with the link can RSVP", icon: Lock },
+                  { id: "public", label: "Public link", sub: "Anyone with the link can join", icon: Eye },
+                  { id: "passcode", label: "Password-protected", sub: "Guests enter a passcode to view", icon: Lock },
+                ] as { id: Privacy; label: string; sub: string; icon: typeof Lock }[]).map((opt) => {
+                  const active = privacy === opt.id;
+                  const Icon = opt.icon;
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setPrivacy(opt.id);
+                      }}
+                      style={[s.ruleRow, active ? s.ruleRowActive : null]}
+                    >
+                      <View style={[s.ruleDot, active ? s.ruleDotActive : null]}>
+                        {active ? <Check color={C.text} size={12} /> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.ruleTitle}>{opt.label}</Text>
+                        <Text style={s.ruleSub}>{opt.sub}</Text>
+                      </View>
+                      <Icon color={active ? C.pinkHi : C.mute} size={16} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {privacy === "passcode" ? (
+                <TextInput
+                  placeholder="Set a 4\u20136 digit passcode"
+                  placeholderTextColor={C.mute}
+                  value={passcode}
+                  onChangeText={(v) => setPasscode(v.replace(/[^0-9a-zA-Z]/g, "").slice(0, 6))}
+                  style={[s.input, { marginTop: 10, letterSpacing: 4, textAlign: "center", fontSize: 20 }]}
+                  autoCapitalize="characters"
+                />
+              ) : null}
+
+              <Text style={s.label}>Gallery visibility</Text>
+              <View style={s.segRow}>
+                {([
+                  { id: "all_after_reveal", label: "Everyone" },
+                  { id: "rsvp_only", label: "RSVP only" },
+                  { id: "host_only", label: "Host only" },
+                ] as { id: Visibility; label: string }[]).map((opt) => {
+                  const active = visibility === opt.id;
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => {
+                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                        setVisibility(opt.id);
+                      }}
+                      style={[s.segBtn, active ? s.segBtnActive : null]}
+                    >
+                      <Text style={[s.segText, active ? { color: C.text } : null]}>{opt.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                  setCheckInEnabled((v) => !v);
+                }}
+                style={[s.checkinCard, checkInEnabled ? s.checkinCardActive : null]}
+              >
+                <View style={[s.checkinIcon, checkInEnabled ? { backgroundColor: C.pink } : null]}>
+                  <ScanLine color={checkInEnabled ? C.text : C.pinkHi} size={20} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.quickTitle}>Check-in at the door</Text>
+                  <Text style={s.quickSub}>
+                    {checkInEnabled
+                      ? "Guests show their pass QR. You'll see live arrivals."
+                      : "Track arrivals like a concert — scan guest passes at the door."}
+                  </Text>
+                </View>
+                <View style={[s.quickToggle, checkInEnabled ? s.quickToggleOn : null]}>
+                  <View style={[s.quickKnob, checkInEnabled ? s.quickKnobOn : null]} />
+                </View>
+              </Pressable>
+            </>
+          ) : null}
+
+          {step === 5 ? (
+            <>
+              <StepHeader step={`STEP 6 OF ${TOTAL_STEPS}`} title="Preview & publish" />
               <InvitationCard event={preview as never} template={tpl} />
+
+              <View style={s.rulesSummary}>
+                <Text style={s.rulesSummaryKicker}>YOUR EVENT RULES</Text>
+                <View style={s.rulesGrid}>
+                  <View style={s.rulesItem}>
+                    <CameraIcon color={C.pinkHi} size={14} />
+                    <Text style={s.rulesItemText}>
+                      {shotsPerGuest === 0 ? "Unlimited shots" : `${shotsPerGuest} shots / guest`}
+                    </Text>
+                  </View>
+                  <View style={s.rulesItem}>
+                    <Unlock color={C.gold} size={14} />
+                    <Text style={s.rulesItemText}>
+                      {REVEAL_OPTIONS.find((r) => r.id === revealMode)?.label ?? "Custom reveal"}
+                    </Text>
+                  </View>
+                  <View style={s.rulesItem}>
+                    <Lock color={C.subtext} size={14} />
+                    <Text style={s.rulesItemText}>
+                      {privacy === "private" ? "Private link" : privacy === "public" ? "Public link" : "Passcode"}
+                    </Text>
+                  </View>
+                  <View style={s.rulesItem}>
+                    <ScanLine color={checkInEnabled ? C.success : C.mute} size={14} />
+                    <Text style={s.rulesItemText}>
+                      {checkInEnabled ? "Check-in on" : "Open entry"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
               <View style={{ gap: 8, marginTop: 16, alignItems: "center" }}>
                 <Sparkles color={C.gold} size={18} />
                 <Text style={s.previewNote}>
@@ -1378,6 +1646,70 @@ const s = StyleSheet.create({
   tplCardName: { color: C.text, fontSize: 12, fontWeight: "700" as const, paddingHorizontal: 4, marginTop: 4 },
   tplCardTagline: { color: C.mute, fontSize: 10, paddingHorizontal: 4, paddingBottom: 4 },
   previewNote: { color: C.subtext, fontSize: 13, textAlign: "center", lineHeight: 19, paddingHorizontal: 24 },
+  shotsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  shotTile: {
+    flex: 1,
+    minWidth: 64,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.hair,
+    alignItems: "center",
+    gap: 2,
+  },
+  shotTileActive: { backgroundColor: C.pink, borderColor: C.pink },
+  shotValue: { color: C.text, fontSize: 22, fontWeight: "800" as const, letterSpacing: -0.5 },
+  shotSub: { color: C.mute, fontSize: 10, fontWeight: "600" as const, letterSpacing: 0.4 },
+  inlineHint: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 8, paddingHorizontal: 4,
+  },
+  inlineHintText: { color: C.subtext, fontSize: 12, flex: 1 },
+  ruleRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 16,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair,
+  },
+  ruleRowActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
+  ruleDot: {
+    width: 22, height: 22, borderRadius: 999,
+    borderWidth: 1.5, borderColor: C.hair,
+    alignItems: "center", justifyContent: "center",
+  },
+  ruleDotActive: { backgroundColor: C.pink, borderColor: C.pink },
+  ruleTitle: { color: C.text, fontSize: 14, fontWeight: "700" as const },
+  ruleSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
+  segRow: { flexDirection: "row", gap: 6, backgroundColor: C.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: C.hair },
+  segBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+  segBtnActive: { backgroundColor: C.pink },
+  segText: { color: C.subtext, fontSize: 12, fontWeight: "700" as const },
+  checkinCard: {
+    marginTop: 14,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, backgroundColor: C.card, borderRadius: 18,
+    borderWidth: 1, borderColor: C.hair,
+  },
+  checkinCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
+  checkinIcon: {
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: "rgba(255,45,122,0.16)",
+    alignItems: "center", justifyContent: "center",
+  },
+  rulesSummary: {
+    marginTop: 16, padding: 14, borderRadius: 18,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair, gap: 10,
+  },
+  rulesSummaryKicker: { color: C.pinkHi, fontSize: 10, fontWeight: "800" as const, letterSpacing: 2 },
+  rulesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  rulesItem: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 999, backgroundColor: C.cardHi,
+    minWidth: "47%",
+  },
+  rulesItemText: { color: C.text, fontSize: 12, fontWeight: "600" as const },
   footer: {
     position: "absolute",
     bottom: 0,

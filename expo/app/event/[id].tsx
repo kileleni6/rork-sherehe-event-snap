@@ -4,12 +4,14 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Calendar as CalendarIcon,
   Camera as CameraIcon,
   ChevronLeft,
   Edit3,
   Eye,
   Lock,
   MapPin,
+  ScanLine,
   Send,
   Share2,
   Sparkles,
@@ -25,6 +27,7 @@ import { InvitationCard } from "@/components/InvitationCard";
 import { Card, Hair, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { TIME_OF_DAY, timeOfDayFromDate } from "@/constants/templates";
+import { addToCalendar } from "@/lib/calendar";
 import { getTemplate, rsvpStats, useEvents } from "@/providers/EventsProvider";
 
 interface Countdown {
@@ -332,6 +335,31 @@ export default function EventDetailScreen() {
             </View>
           </Card>
 
+          {event.checkInEnabled ? (
+            <Pressable
+              onPress={() => router.push(`/checkin/${event.id}` as never)}
+              style={s.checkinBanner}
+            >
+              <LinearGradient
+                colors={["rgba(255,45,122,0.22)", "rgba(199,17,83,0.15)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject as never}
+              />
+              <View style={s.checkinBannerIcon}>
+                <ScanLine color={C.text} size={20} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.checkinBannerTitle}>Check in guests</Text>
+                <Text style={s.checkinBannerSub}>
+                  {event.rsvps.filter((r) => r.checkedInAt).length} of{" "}
+                  {event.rsvps.filter((r) => r.status !== "no").length} arrived
+                </Text>
+              </View>
+              <Text style={s.checkinBannerCta}>Open</Text>
+            </Pressable>
+          ) : null}
+
           <View style={s.sectionRow}>
             <SectionTitle>Host controls</SectionTitle>
           </View>
@@ -371,6 +399,24 @@ export default function EventDetailScreen() {
               ) : null}
             </View>
           </Card>
+
+          <Pressable
+            onPress={() =>
+              addToCalendar({
+                id: event.id,
+                title: event.name,
+                startTs: event.date,
+                venue: event.venue,
+                description: event.message,
+                url: `https://sherehe.app/i/${event.id}`,
+              })
+            }
+            style={s.calRow}
+          >
+            <CalendarIcon color={C.gold} size={18} />
+            <Text style={s.calRowText}>Add to my calendar</Text>
+            <Text style={s.calRowHint}>iCal · Google</Text>
+          </Pressable>
 
           {event.schedule.length > 0 ? (
             <>
@@ -563,4 +609,23 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.hair,
   },
+  checkinBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 20, overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(255,45,122,0.35)",
+  },
+  checkinBannerIcon: {
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: C.pink, alignItems: "center", justifyContent: "center",
+  },
+  checkinBannerTitle: { color: C.text, fontSize: 15, fontWeight: "800" as const },
+  checkinBannerSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 2 },
+  checkinBannerCta: { color: C.text, fontWeight: "800" as const, fontSize: 13, letterSpacing: 0.4 },
+  calRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 18,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair,
+  },
+  calRowText: { color: C.text, fontWeight: "700" as const, fontSize: 14, flex: 1 },
+  calRowHint: { color: C.mute, fontSize: 11, fontWeight: "700" as const, letterSpacing: 1 },
 });

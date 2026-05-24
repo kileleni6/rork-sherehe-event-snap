@@ -1,17 +1,21 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
   ArrowRight,
-  Calendar,
   Camera as CameraIcon,
   ChevronRight,
   Crown,
   Plus,
+  ScanLine,
+  Send,
   Sparkles,
+  Ticket,
   Users,
+  X,
 } from "lucide-react-native";
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -67,9 +71,25 @@ function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
   );
 }
 
+const HOW_IT_WORKS_KEY = "sherehe.how_dismissed.v1";
+
 export default function EventsScreen() {
   const router = useRouter();
   const { upcoming, profile } = useEvents();
+  const [showHow, setShowHow] = useState<boolean>(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(HOW_IT_WORKS_KEY)
+      .then((v) => setShowHow(v !== "1"))
+      .catch(() => {});
+  }, []);
+
+  const dismissHow = useCallback(async () => {
+    setShowHow(false);
+    try {
+      await AsyncStorage.setItem(HOW_IT_WORKS_KEY, "1");
+    } catch {}
+  }, []);
 
   const hero = useMemo(() => upcoming[0], [upcoming]);
   const rest = useMemo(() => upcoming.slice(1), [upcoming]);
@@ -97,6 +117,41 @@ export default function EventsScreen() {
               <Crown color={profile.premium ? C.gold : C.subtext} size={18} />
             </Pressable>
           </View>
+
+          {showHow ? (
+            <View style={styles.howCard}>
+              <View style={styles.howHeader}>
+                <View style={styles.howKickerWrap}>
+                  <Sparkles color={C.pinkHi} size={13} />
+                  <Text style={styles.howKicker}>HOW SHEREHE WORKS</Text>
+                </View>
+                <Pressable onPress={dismissHow} hitSlop={8} style={styles.howClose}>
+                  <X color={C.subtext} size={14} />
+                </Pressable>
+              </View>
+              <View style={styles.howStep}>
+                <View style={styles.howNum}><Send color={C.pinkHi} size={13} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.howStepTitle}>Create & share</Text>
+                  <Text style={styles.howStepSub}>Design an invite, share a link or QR — guests RSVP without installing.</Text>
+                </View>
+              </View>
+              <View style={styles.howStep}>
+                <View style={styles.howNum}><Ticket color={C.gold} size={13} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.howStepTitle}>Pass at the door</Text>
+                  <Text style={styles.howStepSub}>Each guest gets a personal pass with a QR. Optional check-in for ticketed events.</Text>
+                </View>
+              </View>
+              <View style={styles.howStep}>
+                <View style={styles.howNum}><CameraIcon color={C.success} size={13} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.howStepTitle}>Shoot & reveal</Text>
+                  <Text style={styles.howStepSub}>Guests capture a limited roll of photos. The shared gallery unlocks at your reveal time.</Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
 
           {hero ? (
             <Pressable
@@ -317,4 +372,23 @@ const styles = StyleSheet.create({
   proTitle: { color: C.text, fontSize: 16, fontWeight: "700" as const, lineHeight: 21 },
   proSub: { color: "rgba(255,255,255,0.7)", fontSize: 12 },
   fab: { position: "absolute", bottom: 100, right: 16 },
+  howCard: {
+    padding: 16, borderRadius: 22,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.hair, gap: 12,
+  },
+  howHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  howKickerWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
+  howKicker: { color: C.pinkHi, fontSize: 10, letterSpacing: 2, fontWeight: "800" as const },
+  howClose: {
+    width: 26, height: 26, borderRadius: 999,
+    backgroundColor: C.cardHi, alignItems: "center", justifyContent: "center",
+  },
+  howStep: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  howNum: {
+    width: 28, height: 28, borderRadius: 10,
+    backgroundColor: C.cardHi, alignItems: "center", justifyContent: "center",
+    marginTop: 2,
+  },
+  howStepTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  howStepSub: { color: C.subtext, fontSize: 12, lineHeight: 17, marginTop: 2 },
 });

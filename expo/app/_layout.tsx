@@ -46,6 +46,8 @@ function RootLayoutNav() {
       <Stack.Screen name="invite/[id]" options={{ headerTransparent: true, headerTitle: "" }} />
       <Stack.Screen name="camera/[id]" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="gallery/[id]" options={{ headerTransparent: true, headerTitle: "" }} />
+      <Stack.Screen name="pass/[id]" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="checkin/[id]" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
