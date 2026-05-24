@@ -28,7 +28,7 @@ export default function RoleScreen() {
   const next = async () => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
     await update({ role: "host" });
-    router.push("/onboarding/auth" as never);
+    router.push("/onboarding/notifications" as never);
   };
 
   return (

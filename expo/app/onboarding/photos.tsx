@@ -35,7 +35,7 @@ export default function PhotosScreen() {
 
   return (
     <OnboardShell
-      step={6}
+      step={5}
       total={8}
       kicker="MEDIA"
       title={t("photo_title")}

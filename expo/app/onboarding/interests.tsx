@@ -63,7 +63,7 @@ export default function InterestsScreen() {
 
   return (
     <OnboardShell
-      step={7}
+      step={6}
       total={8}
       kicker="INTERESTS"
       title={t("interests_title")}

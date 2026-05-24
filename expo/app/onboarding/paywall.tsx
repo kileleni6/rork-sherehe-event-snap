@@ -52,21 +52,20 @@ export default function OnboardingPaywallScreen() {
   }, [shine]);
   const shimmer = shine.interpolate({ inputRange: [0, 1], outputRange: [-200, 260] });
 
-  const finish = async (premium: boolean) => {
+  const goAuth = async (premium: boolean) => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
     if (premium) await setProfile({ premium: true });
-    await update({ completed: true });
-    router.replace("/(tabs)" as never);
+    router.push("/onboarding/auth" as never);
   };
 
-  const subscribe = () => finish(true);
-  const skip = () => finish(false);
+  const subscribe = () => goAuth(true);
+  const skip = () => goAuth(false);
 
   return (
     <OnboardShell
-      step={8}
+      step={7}
       total={8}
       kicker="UNLOCK"
       title="Host like a star"
