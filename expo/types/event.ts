@@ -20,12 +20,21 @@ export interface Rsvp {
 
 export interface Photo {
   id: string;
+  /** Public URL (or local fallback) used to render the photo */
   uri: string;
   guestName: string;
   takenAt: number;
   filter?: "none" | "warm" | "cool" | "bw" | "sepia";
   style?: CameraStyleId;
   flagged?: boolean;
+  /** Path of the object inside the Supabase Storage bucket, e.g. `eventId/photoId.jpg` */
+  storagePath?: string;
+  /** Epoch ms when the photo was uploaded to the server */
+  uploadedAt?: number;
+  /** Epoch ms when the server-side retention job will delete the object */
+  expiresAt?: number;
+  /** Set to true once the server has purged the underlying object (kept as a tombstone for the UI) */
+  expired?: boolean;
 }
 
 export interface ScheduleItem {

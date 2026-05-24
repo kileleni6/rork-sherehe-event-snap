@@ -4,6 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import { STOCK_SHOTS, TEMPLATES, type TemplateId } from "@/constants/templates";
+import {
+  computeExpiresAt,
+  deleteEventPhoto,
+  isExpired,
+  STORAGE_RETENTION_DAYS,
+  uploadEventPhoto,
+} from "@/lib/storage";
 import type { Event, Photo, Rsvp, RsvpStatus, ScheduleItem } from "@/types/event";
 
 const STORAGE_KEY = "sherehe.events.v1";
@@ -224,7 +231,23 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
 
   const addPhoto = useCallback(
     async (eventId: string, photo: Omit<Photo, "id" | "takenAt">) => {
-      const p: Photo = { ...photo, id: `p_${Date.now()}`, takenAt: Date.now() };
+      const id = `p_${Date.now()}`;
+      const takenAt = Date.now();
+
+      // Upload to Supabase Storage so the photo is durable across devices and
+      // covered by the 30-day server-side retention job. On failure we keep the
+      // original local URI so the guest never loses their shot.
+      const uploaded = await uploadEventPhoto({ eventId, photoId: id, uri: photo.uri });
+
+      const p: Photo = {
+        ...photo,
+        id,
+        takenAt,
+        uri: uploaded?.publicUrl ?? photo.uri,
+        storagePath: uploaded?.storagePath,
+        uploadedAt: uploaded?.uploadedAt,
+        expiresAt: uploaded?.expiresAt ?? computeExpiresAt(takenAt),
+      };
       const next = events.map((e) =>
         e.id === eventId ? { ...e, photos: [p, ...e.photos] } : e
       );
@@ -237,6 +260,13 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
 
   const removePhoto = useCallback(
     async (eventId: string, photoId: string) => {
+      const target = events
+        .find((e) => e.id === eventId)
+        ?.photos.find((p) => p.id === photoId);
+      if (target?.storagePath) {
+        // Fire and forget — UI shouldn't block on the network.
+        deleteEventPhoto(target.storagePath).catch(() => {});
+      }
       const next = events.map((e) =>
         e.id === eventId ? { ...e, photos: e.photos.filter((p) => p.id !== photoId) } : e
       );
@@ -245,6 +275,24 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     },
     [events, persist, qc]
   );
+
+  /**
+   * Strip photos the server has already purged from local cache so the gallery
+   * doesn't render dead URLs. Matches the server-side retention window.
+   */
+  const reconcileRetention = useCallback(async () => {
+    const now = Date.now();
+    let changed = false;
+    const next = events.map((e) => {
+      const kept = e.photos.filter((p) => !isExpired(p.expiresAt, now));
+      if (kept.length !== e.photos.length) changed = true;
+      return kept.length !== e.photos.length ? { ...e, photos: kept } : e;
+    });
+    if (changed) {
+      await persist(next);
+      qc.setQueryData(["events"], next);
+    }
+  }, [events, persist, qc]);
 
   const unlockGallery = useCallback(
     async (eventId: string) => {
@@ -286,6 +334,8 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     checkInGuest,
     addPhoto,
     removePhoto,
+    reconcileRetention,
+    retentionDays: STORAGE_RETENTION_DAYS,
     unlockGallery,
     setProfile,
   };
