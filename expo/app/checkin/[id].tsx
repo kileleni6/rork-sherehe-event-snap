@@ -1,3 +1,4 @@
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -5,35 +6,80 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  FlashlightIcon,
+  Keyboard as KeyboardIcon,
   ScanLine,
   Search,
+  SwitchCamera,
   Undo2,
   Users,
   X,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card, GhostButton, SectionTitle, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
+
+/** Extract the 6-character pass code from either a raw code or a QR payload (`SHEREHE:eventId:CODE`). */
+function extractCode(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return trimmed.includes(":") ? (trimmed.split(":").pop() ?? trimmed) : trimmed;
+}
 
 export default function CheckInScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { findById, checkInGuest } = useEvents();
+  const { t, formatTime } = useOnboarding();
   const event = findById(id);
 
   const [query, setQuery] = useState<string>("");
   const [scanInput, setScanInput] = useState<string>("");
   const [lastChecked, setLastChecked] = useState<{ name: string; at: number } | null>(null);
+  const [manualMode, setManualMode] = useState<boolean>(false);
+  const [torch, setTorch] = useState<boolean>(false);
+  const [facing, setFacing] = useState<"back" | "front">("back");
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanCooldown, setScanCooldown] = useState<boolean>(false);
+  const lastScanRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  // Sweep line animation for the scanner viewfinder.
+  useEffect(() => {
+    if (manualMode) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [manualMode, pulse]);
+
+  const cameraSupported = Platform.OS !== "web";
 
   if (!event) {
     return (
       <View style={s.container}>
-        <Text style={{ color: C.text, padding: 30 }}>Event not found.</Text>
+        <Text style={{ color: C.text, padding: 30 }}>{t("checkin_event_not_found")}</Text>
       </View>
     );
   }
@@ -47,49 +93,70 @@ export default function CheckInScreen() {
     const q = query.trim().toLowerCase();
     if (!q) return pending;
     return pending.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.passCode.toLowerCase().includes(q)
+      (r) => r.name.toLowerCase().includes(q) || r.passCode.toLowerCase().includes(q)
     );
   }, [pending, query]);
 
-  const checkIn = async (rsvpId: string, name: string) => {
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    }
-    await checkInGuest(event.id, rsvpId, Date.now());
-    setLastChecked({ name, at: Date.now() });
-    setTimeout(() => setLastChecked(null), 2500);
-  };
+  const checkIn = useCallback(
+    async (rsvpId: string, name: string) => {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      await checkInGuest(event.id, rsvpId, Date.now());
+      setLastChecked({ name, at: Date.now() });
+      setTimeout(() => setLastChecked(null), 2500);
+    },
+    [checkInGuest, event.id]
+  );
 
   const undo = async (rsvpId: string) => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
     await checkInGuest(event.id, rsvpId, 0);
   };
 
+  const handleResolvedCode = useCallback(
+    async (raw: string) => {
+      const code = extractCode(raw).toUpperCase();
+      if (!code) return;
+      const match = event.rsvps.find((r) => r.passCode.toUpperCase() === code);
+      if (!match) {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        Alert.alert(t("checkin_pass_not_found_title"), t("checkin_pass_not_found_body", { code }));
+        return;
+      }
+      if (typeof match.checkedInAt === "number") {
+        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+        Alert.alert(
+          t("checkin_already_title"),
+          t("checkin_already_body", { name: match.name, time: formatTime(match.checkedInAt) })
+        );
+        return;
+      }
+      await checkIn(match.id, match.name);
+    },
+    [event.rsvps, checkIn, t, formatTime]
+  );
+
+  const onBarcode = useCallback(
+    (result: BarcodeScanningResult) => {
+      const data = result.data?.trim();
+      if (!data || scanCooldown) return;
+      // De-dupe rapid repeated scans of the same QR (most scanners fire 5-10×/sec).
+      const now = Date.now();
+      if (lastScanRef.current.code === data && now - lastScanRef.current.at < 2500) return;
+      lastScanRef.current = { code: data, at: now };
+      setScanCooldown(true);
+      setTimeout(() => setScanCooldown(false), 1500);
+      handleResolvedCode(data);
+    },
+    [handleResolvedCode, scanCooldown]
+  );
+
   const submitScan = async () => {
     const raw = scanInput.trim();
     if (!raw) return;
-    // Accepts either a raw passCode (e.g. "ZURI24") or the QR payload "SHEREHE:eventId:CODE"
-    const code = raw.includes(":") ? raw.split(":").pop() ?? raw : raw;
-    const match = event.rsvps.find(
-      (r) => r.passCode.toUpperCase() === code.toUpperCase()
-    );
     setScanInput("");
-    if (!match) {
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      Alert.alert("Pass not found", `No guest matches code "${code}".`);
-      return;
-    }
-    if (typeof match.checkedInAt === "number") {
-      if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-      Alert.alert(
-        "Already checked in",
-        `${match.name} arrived at ${new Date(match.checkedInAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}.`
-      );
-      return;
-    }
-    await checkIn(match.id, match.name);
+    await handleResolvedCode(raw);
   };
 
   const arrivedPct = expectedCount > 0 ? (arrived.length / expectedCount) * 100 : 0;
@@ -107,10 +174,17 @@ export default function CheckInScreen() {
             <ChevronLeft color={C.text} size={22} />
           </Pressable>
           <View style={{ alignItems: "center" }}>
-            <Text style={s.topKicker}>CHECK IN</Text>
+            <Text style={s.topKicker}>{t("checkin_kicker")}</Text>
             <Text style={s.topTitle} numberOfLines={1}>{event.name}</Text>
           </View>
-          <View style={s.iconBtn} />
+          <Pressable
+            onPress={() => setManualMode((v) => !v)}
+            style={s.iconBtn}
+            hitSlop={10}
+            accessibilityLabel="Toggle manual entry"
+          >
+            <KeyboardIcon color={manualMode ? C.pinkHi : C.text} size={18} />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -126,7 +200,7 @@ export default function CheckInScreen() {
                   {arrived.length}
                   <Text style={s.counterTotal}> / {expectedCount}</Text>
                 </Text>
-                <Text style={s.counterLabel}>Guests arrived</Text>
+                <Text style={s.counterLabel}>{t("checkin_guests_arrived")}</Text>
               </View>
               <View style={s.counterIcon}>
                 <Users color={C.pinkHi} size={24} />
@@ -138,60 +212,147 @@ export default function CheckInScreen() {
             <View style={s.counterMeta}>
               <View style={s.counterMetaItem}>
                 <View style={[s.dot, { backgroundColor: C.success }]} />
-                <Text style={s.counterMetaText}>{arrived.length} in</Text>
+                <Text style={s.counterMetaText}>{t("checkin_in", { n: arrived.length })}</Text>
               </View>
               <View style={s.counterMetaItem}>
                 <View style={[s.dot, { backgroundColor: C.gold }]} />
-                <Text style={s.counterMetaText}>{pending.length} expected</Text>
+                <Text style={s.counterMetaText}>{t("checkin_expected", { n: pending.length })}</Text>
               </View>
             </View>
           </Card>
 
-          {/* Scan / paste code */}
-          <SectionTitle style={{ marginTop: 22 }}>Scan a pass</SectionTitle>
+          {/* Scanner */}
+          <SectionTitle style={{ marginTop: 22 }}>{t("checkin_scan_title")}</SectionTitle>
           <Text style={s.helperText}>
-            Type or paste the 6-character code from the guest's pass. On a real device you can also point the camera at their QR.
+            {manualMode ? t("checkin_scan_manual_helper") : t("checkin_scan_helper")}
           </Text>
-          <View style={s.scanCard}>
-            <View style={s.scanIcon}>
-              <ScanLine color={C.pinkHi} size={22} />
+
+          {!manualMode ? (
+            <View style={s.scannerWrap}>
+              {!cameraSupported ? (
+                <View style={s.scannerPlaceholder}>
+                  <ScanLine color={C.pinkHi} size={32} />
+                  <Text style={s.placeholderTitle}>{t("checkin_camera_unavailable")}</Text>
+                  <Text style={s.placeholderSub}>{t("checkin_camera_unavailable_body")}</Text>
+                  <Pressable onPress={() => setManualMode(true)} style={s.placeholderBtn}>
+                    <KeyboardIcon color={C.text} size={14} />
+                    <Text style={s.placeholderBtnText}>{t("checkin_scan_cta")}</Text>
+                  </Pressable>
+                </View>
+              ) : !permission ? (
+                <View style={s.scannerPlaceholder}>
+                  <Text style={s.placeholderSub}>…</Text>
+                </View>
+              ) : !permission.granted ? (
+                <View style={s.scannerPlaceholder}>
+                  <ScanLine color={C.pinkHi} size={32} />
+                  <Text style={s.placeholderTitle}>{t("checkin_permission_title")}</Text>
+                  <Text style={s.placeholderSub}>{t("checkin_permission_body")}</Text>
+                  <Pressable onPress={() => requestPermission()} style={s.placeholderBtn}>
+                    <Text style={s.placeholderBtnText}>{t("checkin_permission_grant")}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={s.scannerCamWrap}>
+                  <CameraView
+                    style={StyleSheet.absoluteFill}
+                    facing={facing}
+                    enableTorch={torch}
+                    barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                    onBarcodeScanned={onBarcode}
+                  />
+                  {/* Frame & sweep */}
+                  <View pointerEvents="none" style={s.frameOverlay}>
+                    {(["tl", "tr", "bl", "br"] as const).map((p) => (
+                      <View key={p} style={[s.frameCorner, s[`corner_${p}`]]} />
+                    ))}
+                    <Animated.View
+                      style={[
+                        s.sweep,
+                        {
+                          transform: [
+                            {
+                              translateY: pulse.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 200],
+                              }),
+                            },
+                          ],
+                          opacity: pulse.interpolate({
+                            inputRange: [0, 0.5, 1],
+                            outputRange: [0, 0.9, 0],
+                          }),
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  {/* Floating controls */}
+                  <View style={s.camControls}>
+                    <Pressable
+                      onPress={() => setTorch((v) => !v)}
+                      style={[s.camBtn, torch ? s.camBtnActive : null]}
+                      hitSlop={10}
+                    >
+                      <FlashlightIcon color={torch ? C.gold : C.text} size={16} />
+                      <Text style={s.camBtnText}>{torch ? t("checkin_torch_on") : t("checkin_torch_off")}</Text>
+                    </Pressable>
+                    <View style={s.aimHint}>
+                      <Text style={s.aimHintText}>{t("checkin_aim_hint")}</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+                      style={s.camBtn}
+                      hitSlop={10}
+                    >
+                      <SwitchCamera color={C.text} size={16} />
+                      <Text style={s.camBtnText}>{t("checkin_flip")}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
             </View>
-            <TextInput
-              placeholder="e.g. ZURI24"
-              placeholderTextColor={C.mute}
-              value={scanInput}
-              onChangeText={(v) => setScanInput(v.toUpperCase().replace(/[^A-Z0-9:]/g, "").slice(0, 24))}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              onSubmitEditing={submitScan}
-              returnKeyType="done"
-              style={s.scanInput}
-            />
-            <Pressable
-              onPress={submitScan}
-              disabled={!scanInput.trim()}
-              style={[s.scanBtn, { opacity: scanInput.trim() ? 1 : 0.4 }]}
-            >
-              <Text style={s.scanBtnText}>Check in</Text>
-            </Pressable>
-          </View>
+          ) : (
+            <View style={s.scanCard}>
+              <View style={s.scanIcon}>
+                <ScanLine color={C.pinkHi} size={22} />
+              </View>
+              <TextInput
+                placeholder={t("checkin_scan_placeholder")}
+                placeholderTextColor={C.mute}
+                value={scanInput}
+                onChangeText={(v) => setScanInput(v.toUpperCase().replace(/[^A-Z0-9:]/g, "").slice(0, 24))}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                onSubmitEditing={submitScan}
+                returnKeyType="done"
+                style={s.scanInput}
+              />
+              <Pressable
+                onPress={submitScan}
+                disabled={!scanInput.trim()}
+                style={[s.scanBtn, { opacity: scanInput.trim() ? 1 : 0.4 }]}
+              >
+                <Text style={s.scanBtnText}>{t("checkin_scan_cta")}</Text>
+              </Pressable>
+            </View>
+          )}
 
           {lastChecked ? (
             <View style={s.toast}>
               <CheckCircle2 color={C.success} size={18} />
               <Text style={s.toastText}>
-                {lastChecked.name} checked in at{" "}
-                {new Date(lastChecked.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                {t("checkin_toast", { name: lastChecked.name, time: formatTime(lastChecked.at) })}
               </Text>
             </View>
           ) : null}
 
           {/* Search expected */}
-          <SectionTitle style={{ marginTop: 22 }}>Not yet arrived</SectionTitle>
+          <SectionTitle style={{ marginTop: 22 }}>{t("checkin_not_yet")}</SectionTitle>
           <View style={s.searchRow}>
             <Search color={C.mute} size={16} />
             <TextInput
-              placeholder="Search by name or code"
+              placeholder={t("checkin_search_placeholder")}
               placeholderTextColor={C.mute}
               value={query}
               onChangeText={setQuery}
@@ -216,13 +377,17 @@ export default function CheckInScreen() {
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 2, alignItems: "center" }}>
                     <Text style={s.passCode}>{r.passCode}</Text>
                     {r.guests > 0 ? (
-                      <Text style={s.guestExtra}>+{r.guests} guest{r.guests === 1 ? "" : "s"}</Text>
+                      <Text style={s.guestExtra}>
+                        {r.guests === 1
+                          ? t("checkin_plus_guests_one", { n: r.guests })
+                          : t("checkin_plus_guests_many", { n: r.guests })}
+                      </Text>
                     ) : null}
                   </View>
                 </View>
                 <Pressable onPress={() => checkIn(r.id, r.name)} style={s.checkBtn}>
                   <CheckCircle2 color={C.text} size={16} />
-                  <Text style={s.checkBtnText}>Check in</Text>
+                  <Text style={s.checkBtnText}>{t("checkin_scan_cta")}</Text>
                 </Pressable>
               </View>
             ))}
@@ -230,12 +395,10 @@ export default function CheckInScreen() {
               <View style={s.empty}>
                 <CheckCircle2 color={C.success} size={22} />
                 <Text style={s.emptyTitle}>
-                  {pending.length === 0 ? "Everyone's here" : "No matches"}
+                  {pending.length === 0 ? t("checkin_everyone_here") : t("checkin_no_matches")}
                 </Text>
                 <Text style={s.emptySub}>
-                  {pending.length === 0
-                    ? "Every expected guest has been checked in."
-                    : "Try a different name or code."}
+                  {pending.length === 0 ? t("checkin_everyone_here_sub") : t("checkin_no_matches_sub")}
                 </Text>
               </View>
             ) : null}
@@ -243,7 +406,7 @@ export default function CheckInScreen() {
 
           {arrived.length > 0 ? (
             <>
-              <SectionTitle style={{ marginTop: 24 }}>Arrivals</SectionTitle>
+              <SectionTitle style={{ marginTop: 24 }}>{t("checkin_arrivals")}</SectionTitle>
               <View style={{ gap: 8, marginTop: 8 }}>
                 {[...arrived]
                   .sort((a, b) => (b.checkedInAt ?? 0) - (a.checkedInAt ?? 0))
@@ -257,10 +420,7 @@ export default function CheckInScreen() {
                         <View style={{ flexDirection: "row", gap: 6, marginTop: 2, alignItems: "center" }}>
                           <Clock color={C.subtext} size={11} />
                           <Text style={s.guestExtra}>
-                            {new Date(r.checkedInAt ?? 0).toLocaleTimeString(undefined, {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
+                            {formatTime(r.checkedInAt ?? 0)}
                           </Text>
                           {r.guests > 0 ? <Tag label={`+${r.guests}`} tone="mute" /> : null}
                         </View>
@@ -274,7 +434,7 @@ export default function CheckInScreen() {
             </>
           ) : null}
 
-          <GhostButton title="Done" onPress={() => router.back()} style={{ marginTop: 26 }} />
+          <GhostButton title={t("checkin_done")} onPress={() => router.back()} style={{ marginTop: 26 }} />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -312,6 +472,85 @@ const s = StyleSheet.create({
   counterMetaText: { color: C.subtext, fontSize: 12, fontWeight: "600" as const },
   dot: { width: 8, height: 8, borderRadius: 999 },
   helperText: { color: C.subtext, fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: 12 },
+
+  // Scanner
+  scannerWrap: { borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: C.hair },
+  scannerCamWrap: {
+    aspectRatio: 1,
+    width: "100%",
+    backgroundColor: "#000",
+    position: "relative",
+    overflow: "hidden",
+  },
+  frameOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 40,
+  },
+  frameCorner: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderColor: C.pinkHi,
+  },
+  corner_tl: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  corner_tr: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  corner_bl: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  corner_br: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  sweep: {
+    position: "absolute",
+    left: 6,
+    right: 6,
+    height: 2,
+    backgroundColor: C.pinkHi,
+    shadowColor: C.pinkHi,
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+  },
+  camControls: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  camBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 999, backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  camBtnActive: { borderColor: C.gold },
+  camBtnText: { color: C.text, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 },
+  aimHint: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999, backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  aimHintText: { color: C.text, fontSize: 11, fontWeight: "600" as const },
+  scannerPlaceholder: {
+    aspectRatio: 1,
+    width: "100%",
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 10,
+  },
+  placeholderTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14, marginTop: 4 },
+  placeholderSub: { color: C.subtext, fontSize: 12, textAlign: "center", lineHeight: 18, paddingHorizontal: 12 },
+  placeholderBtn: {
+    marginTop: 8,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 999, backgroundColor: C.pink,
+  },
+  placeholderBtnText: { color: C.text, fontWeight: "800" as const, fontSize: 12 },
+
+  // Manual input
   scanCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     padding: 8, paddingLeft: 14,
@@ -332,6 +571,7 @@ const s = StyleSheet.create({
     backgroundColor: C.pink,
   },
   scanBtnText: { color: C.text, fontWeight: "800" as const, fontSize: 13 },
+
   toast: {
     marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,

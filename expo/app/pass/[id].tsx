@@ -21,6 +21,7 @@ import { GhostButton, PrimaryButton, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { addToCalendar } from "@/lib/calendar";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function GuestPassScreen() {
   const { id } = useLocalSearchParams<{ id: string; rsvp?: string }>();
@@ -28,6 +29,7 @@ export default function GuestPassScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { findById } = useEvents();
+  const { t, formatDate, formatTime } = useOnboarding();
   const event = findById(id);
 
   const rsvp = useMemo(() => {
@@ -44,8 +46,8 @@ export default function GuestPassScreen() {
           <Pressable onPress={() => router.back()} style={s.iconBtn}>
             <ChevronLeft color={C.text} size={22} />
           </Pressable>
-          <Text style={{ color: C.text, fontSize: 18, fontWeight: "700" as const }}>Pass not found</Text>
-          <Text style={{ color: C.subtext }}>RSVP first to get your personal pass.</Text>
+          <Text style={{ color: C.text, fontSize: 18, fontWeight: "700" as const }}>{t("pass_not_found_title")}</Text>
+          <Text style={{ color: C.subtext }}>{t("pass_not_found_sub")}</Text>
         </SafeAreaView>
       </View>
     );
@@ -64,7 +66,7 @@ export default function GuestPassScreen() {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
     try {
       await Clipboard.setStringAsync(rsvp.passCode);
-      Alert.alert("Code copied", `Show "${rsvp.passCode}" at the door.`);
+      Alert.alert(t("pass_copied_title"), t("pass_copied_body", { code: rsvp.passCode }));
     } catch (e) {
       console.log("[pass-copy]", e);
     }
@@ -99,7 +101,7 @@ export default function GuestPassScreen() {
           <Pressable onPress={() => router.back()} style={s.iconBtn} hitSlop={10}>
             <ChevronLeft color={C.text} size={22} />
           </Pressable>
-          <Text style={s.topTitle}>Your pass</Text>
+          <Text style={s.topTitle}>{t("pass_title")}</Text>
           <View style={s.iconBtn} />
         </View>
 
@@ -116,17 +118,13 @@ export default function GuestPassScreen() {
             >
               <View style={s.passKickerRow}>
                 <Ticket color={C.pinkDeep} size={14} />
-                <Text style={s.passKicker}>SHEREHE GUEST PASS</Text>
+                <Text style={s.passKicker}>{t("pass_kicker")}</Text>
               </View>
               <Text style={s.passEvent}>{event.name}</Text>
               <Text style={s.passDate}>
-                {new Date(event.date).toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
+                {formatDate(event.date, { weekday: "long", month: "long", day: "numeric" })}
                 {" · "}
-                {new Date(event.date).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                {formatTime(event.date)}
               </Text>
               <View style={s.passVenueRow}>
                 <MapPin color={C.pinkDeep} size={13} />
@@ -149,7 +147,7 @@ export default function GuestPassScreen() {
                 <Text style={s.codeText}>{rsvp.passCode}</Text>
                 <Copy color={C.pinkDeep} size={14} />
               </Pressable>
-              <Text style={s.passFootnote}>Show this pass at the door</Text>
+              <Text style={s.passFootnote}>{t("pass_show_at_door")}</Text>
             </View>
           </View>
 
@@ -157,13 +155,9 @@ export default function GuestPassScreen() {
             <View style={[s.statusCard, { borderColor: "rgba(61,214,140,0.35)", backgroundColor: "rgba(61,214,140,0.08)" }]}>
               <CheckCircle2 color={C.success} size={20} />
               <View style={{ flex: 1 }}>
-                <Text style={s.statusTitle}>Checked in</Text>
+                <Text style={s.statusTitle}>{t("pass_checked_in")}</Text>
                 <Text style={s.statusSub}>
-                  {new Date(rsvp.checkedInAt ?? Date.now()).toLocaleTimeString(undefined, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                  {" · enjoy the celebration"}
+                  {t("pass_checked_in_sub", { time: formatTime(rsvp.checkedInAt ?? Date.now()) })}
                 </Text>
               </View>
             </View>
@@ -171,8 +165,8 @@ export default function GuestPassScreen() {
             <View style={s.statusCard}>
               <Sparkles color={C.gold} size={18} />
               <View style={{ flex: 1 }}>
-                <Text style={s.statusTitle}>Not checked in yet</Text>
-                <Text style={s.statusSub}>The host will scan your pass at the door.</Text>
+                <Text style={s.statusTitle}>{t("pass_not_checked_in")}</Text>
+                <Text style={s.statusSub}>{t("pass_not_checked_in_sub")}</Text>
               </View>
             </View>
           )}
@@ -180,29 +174,29 @@ export default function GuestPassScreen() {
           <View style={s.statsRow}>
             <View style={s.statTile}>
               <Text style={s.statValue}>{shotsLeft}</Text>
-              <Text style={s.statLabel}>Photos left</Text>
+              <Text style={s.statLabel}>{t("pass_photos_left")}</Text>
             </View>
             <View style={s.statTile}>
               <Text style={s.statValue}>{event.rsvps.find((r) => r.id === rsvp.id)?.guests ?? 1}</Text>
-              <Text style={s.statLabel}>In your party</Text>
+              <Text style={s.statLabel}>{t("pass_in_party")}</Text>
             </View>
             <View style={s.statTile}>
               <Tag
-                label={rsvp.status === "yes" ? "Going" : rsvp.status === "maybe" ? "Maybe" : "Can't"}
+                label={rsvp.status === "yes" ? t("pass_rsvp_going") : rsvp.status === "maybe" ? t("pass_rsvp_maybe") : t("pass_rsvp_no")}
                 tone={rsvp.status === "yes" ? "success" : rsvp.status === "maybe" ? "gold" : "mute"}
               />
-              <Text style={[s.statLabel, { marginTop: 6 }]}>RSVP</Text>
+              <Text style={[s.statLabel, { marginTop: 6 }]}>{t("pass_rsvp")}</Text>
             </View>
           </View>
 
           <PrimaryButton
-            title={galleryUnlocked ? "Open camera" : "Open camera at event"}
+            title={galleryUnlocked ? t("pass_open_camera") : t("pass_open_camera_later")}
             icon={CameraIcon}
             onPress={onOpenCamera}
             style={{ marginTop: 16 }}
           />
           <GhostButton
-            title="Add to calendar"
+            title={t("pass_add_calendar")}
             icon={CalendarIcon}
             onPress={onAddCalendar}
             style={{ marginTop: 10 }}
@@ -210,7 +204,7 @@ export default function GuestPassScreen() {
 
           {event.schedule.length > 0 ? (
             <View style={s.schedCard}>
-              <Text style={s.schedTitle}>Run of show</Text>
+              <Text style={s.schedTitle}>{t("pass_run_of_show")}</Text>
               {event.schedule.map((it) => (
                 <View key={it.id} style={s.schedRow}>
                   <Text style={s.schedTime}>{it.time}</Text>

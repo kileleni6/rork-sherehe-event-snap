@@ -30,6 +30,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Card, GhostButton, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 import type { Photo } from "@/types/event";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -37,7 +38,7 @@ const GAP = 6;
 const COLS = 3;
 const TILE = (SCREEN_W - 32 - GAP * (COLS - 1)) / COLS;
 
-function CountdownTimer({ target }: { target: number }) {
+function CountdownTimer({ target, labels }: { target: number; labels: { d: string; h: string; m: string; s: string } }) {
   const [now, setNow] = useState<number>(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -51,10 +52,10 @@ function CountdownTimer({ target }: { target: number }) {
   const sec = Math.floor((diff % 60000) / 1000);
   return (
     <View style={cs.cdRow}>
-      <CdBlock label="DAYS" value={d} />
-      <CdBlock label="HRS" value={h} />
-      <CdBlock label="MIN" value={m} />
-      <CdBlock label="SEC" value={sec} />
+      <CdBlock label={labels.d} value={d} />
+      <CdBlock label={labels.h} value={h} />
+      <CdBlock label={labels.m} value={m} />
+      <CdBlock label={labels.s} value={sec} />
     </View>
   );
 }
@@ -72,6 +73,7 @@ export default function GalleryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { findById, unlockGallery, removePhoto } = useEvents();
+  const { t, formatDateTime } = useOnboarding();
   const event = findById(id);
   const [viewing, setViewing] = useState<Photo | null>(null);
   const [fade] = useState<Animated.Value>(new Animated.Value(0));
@@ -88,7 +90,7 @@ export default function GalleryScreen() {
   if (!event) {
     return (
       <View style={cs.container}>
-        <Text style={{ color: C.text, padding: 30 }}>Event not found.</Text>
+        <Text style={{ color: C.text, padding: 30 }}>{t("gallery_event_not_found")}</Text>
       </View>
     );
   }
@@ -121,25 +123,30 @@ export default function GalleryScreen() {
               <View style={cs.lockShield}>
                 <Lock color={C.text} size={42} />
               </View>
-              <Text style={cs.lockKicker}>SEALED ENVELOPE</Text>
-              <Text style={cs.lockTitle}>The reveal is coming</Text>
+              <Text style={cs.lockKicker}>{t("gallery_sealed_kicker")}</Text>
+              <Text style={cs.lockTitle}>{t("gallery_reveal_coming")}</Text>
               <Text style={cs.lockSub}>
-                {event.photos.length} {event.photos.length === 1 ? "memory" : "memories"} sealed by guests. Unlocks at the reveal time so everyone relives it together.
+                {event.photos.length === 1
+                  ? t("gallery_reveal_sub_one", { n: event.photos.length })
+                  : t("gallery_reveal_sub_many", { n: event.photos.length })}
               </Text>
 
-              <CountdownTimer target={event.revealAt} />
+              <CountdownTimer
+                target={event.revealAt}
+                labels={{ d: t("gallery_days"), h: t("gallery_hrs"), m: t("gallery_min"), s: t("gallery_sec") }}
+              />
             </View>
 
             <Card style={{ marginTop: 18, gap: 14 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Sparkles color={C.gold} size={20} />
-                <Text style={cs.aiText}>You're the host — unlock early for everyone.</Text>
+                <Text style={cs.aiText}>{t("gallery_host_unlock_note")}</Text>
               </View>
-              <PrimaryButton title="Unlock gallery now" icon={Unlock} onPress={handleUnlock} />
-              <GhostButton title="Back to event" onPress={() => router.back()} />
+              <PrimaryButton title={t("gallery_unlock_now")} icon={Unlock} onPress={handleUnlock} />
+              <GhostButton title={t("gallery_back_event")} onPress={() => router.back()} />
             </Card>
 
-            <SectionTitle style={{ marginTop: 22 }}>What's inside</SectionTitle>
+            <SectionTitle style={{ marginTop: 22 }}>{t("gallery_whats_inside")}</SectionTitle>
             <View style={cs.previewRow}>
               {sorted.slice(0, 4).map((p) => (
                 <View key={p.id} style={cs.previewTile}>
@@ -160,11 +167,11 @@ export default function GalleryScreen() {
           <>
             <View style={cs.unlockedHeader}>
               <View>
-                <Tag label="UNLOCKED" tone="success" />
+                <Tag label={t("gallery_unlocked_tag")} tone="success" />
                 <Text style={cs.unlockedTitle}>
-                  {sorted.length} memories
+                  {t("gallery_memories_count", { n: sorted.length })}
                 </Text>
-                <Text style={cs.unlockedSub}>Tap to view · long-press to manage</Text>
+                <Text style={cs.unlockedSub}>{t("gallery_hint")}</Text>
               </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable style={cs.iconBtn}>
@@ -196,7 +203,7 @@ export default function GalleryScreen() {
               )}
               ListEmptyComponent={
                 <Card style={{ alignItems: "center", paddingVertical: 40, marginTop: 20 }}>
-                  <Text style={{ color: C.subtext }}>No photos captured yet.</Text>
+                  <Text style={{ color: C.subtext }}>{t("gallery_empty")}</Text>
                 </Card>
               }
             />
@@ -225,7 +232,7 @@ export default function GalleryScreen() {
                   contentFit="cover"
                 />
                 <Text style={cs.viewerMeta}>
-                  Captured {new Date(viewing.takenAt).toLocaleString()}
+                  {t("gallery_captured_at", { date: formatDateTime(viewing.takenAt) })}
                 </Text>
               </View>
             ) : null}
