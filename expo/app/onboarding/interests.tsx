@@ -122,8 +122,13 @@ export default function InterestsScreen() {
             onSubmitEditing={addCustom}
             maxLength={28}
           />
-          <Pressable onPress={addCustom} style={[styles.addBtn, !draft.trim() ? { opacity: 0.5 } : null]}>
-            <Plus color={C.text} size={18} />
+          <Pressable
+            onPress={addCustom}
+            disabled={!draft.trim()}
+            style={[styles.addBtn, !draft.trim() ? { opacity: 0.4 } : null]}
+          >
+            <Plus color={C.text} size={16} />
+            <Text style={styles.addBtnText}>Add</Text>
           </Pressable>
         </View>
 
@@ -131,7 +136,9 @@ export default function InterestsScreen() {
           <View style={styles.customsWrap}>
             {customs.map((label) => (
               <View key={label} style={styles.customChip}>
-                <Text style={styles.customChipText}>{label}</Text>
+                <Text style={styles.customChipText} numberOfLines={1}>
+                  {label}
+                </Text>
                 <Pressable onPress={() => removeCustom(label)} hitSlop={6}>
                   <X color={C.text} size={14} />
                 </Pressable>
@@ -184,13 +191,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   addBtn: {
-    width: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 14,
     height: 44,
     borderRadius: 12,
     backgroundColor: C.pink,
-    alignItems: "center",
-    justifyContent: "center",
   },
+  addBtnText: { color: C.text, fontWeight: "800" as const, fontSize: 13 },
   customsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
   customChip: {
     flexDirection: "row",
@@ -202,6 +212,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,45,122,0.14)",
     borderWidth: 1,
     borderColor: C.pink,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
-  customChipText: { color: C.text, fontSize: 12, fontWeight: "700" as const },
+  customChipText: { color: C.text, fontSize: 12, fontWeight: "700" as const, flexShrink: 1 },
 });

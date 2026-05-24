@@ -10,6 +10,7 @@ import {
   Clock,
   ImagePlus,
   Plus,
+  RefreshCw,
   Sparkles,
   Wand2,
   X,
@@ -49,15 +50,147 @@ import type { ScheduleItem } from "@/types/event";
 
 const TOTAL_STEPS = 5;
 
-const COPY_SAMPLES: Record<EventTypeId, string> = {
-  wedding: "Together with our families, we joyfully invite you to witness our forever begin.",
-  birthday: "Come sip, dance and toast another trip around the sun with me!",
-  baby: "A tiny miracle is on the way — celebrate the joy with us.",
-  graduation: "From late nights to a new chapter — please join us as we celebrate.",
-  vacation: "Pack lightly, smile widely. Join the getaway of the year.",
-  private: "An intimate evening of good people, good music and great stories.",
-  brand: "Doors open. Glasses up. Step inside the experience.",
-  custom: "We've planned something special. We'd love to share it with you.",
+const COPY_VARIANTS: Record<EventTypeId, string[]> = {
+  wedding: [
+    "Together with our families, we joyfully invite you to witness our forever begin.",
+    "Two hearts, one promise — please join us as we say 'I do' and dance the night away.",
+    "A celebration of love, family and the start of our greatest adventure. We'd be honored to have you there.",
+    "From the first dance to the last toast — we want you in every memory of our wedding day.",
+  ],
+  birthday: [
+    "Come sip, dance and toast another trip around the sun with me!",
+    "Cake. Confetti. Chaos in the best way. You're invited to my birthday.",
+    "It's officially my birthday era — bring your loudest 'happy birthday' voice.",
+    "Another year wiser (debatable). Let's celebrate with the people who make it worth it.",
+  ],
+  baby: [
+    "A tiny miracle is on the way — celebrate the joy with us.",
+    "Little hands, little feet, little party — come shower baby with love.",
+    "Before lullabies and late nights, let's gather for cupcakes and cuddles.",
+    "Baby's first guest list. Hope you can make it!",
+  ],
+  graduation: [
+    "From late nights to a new chapter — please join us as we celebrate.",
+    "Cap tossed, diploma in hand — time to celebrate everyone who made it possible.",
+    "Four years, countless coffees, one big milestone. Come raise a glass with us.",
+    "The tassel was worth the hassle. Join the celebration!",
+  ],
+  vacation: [
+    "Pack lightly, smile widely. Join the getaway of the year.",
+    "Sun, sea and slow mornings — the trip we've been talking about is finally happening.",
+    "Out-of-office mode: on. Adventure mode: ON. Come along for the ride.",
+    "Bags packed, group chat ready. Here's everything you need for our escape.",
+  ],
+  private: [
+    "An intimate evening of good people, good music and great stories.",
+    "A quiet kind of celebration — just our favorite people, dressed up and undone.",
+    "No occasion. Just us. Bring your best self and an open glass.",
+    "Doors closed, hearts open. You're invited to a private evening.",
+  ],
+  brand: [
+    "Doors open. Glasses up. Step inside the experience.",
+    "An evening to mark the moment — meet the team, see the work, share the story.",
+    "Curated drinks, a few surprises and the people behind the brand. Save the date.",
+    "You're invited to a night where the brand meets its biggest believers.",
+  ],
+  custom: [
+    "We've planned something special. We'd love to share it with you.",
+    "It doesn't fit in a category — but it'll be unforgettable. Hope you can make it.",
+    "Mark your calendar. We're gathering for something worth remembering.",
+    "An evening built for the people who matter most. You're one of them.",
+  ],
+};
+
+// Generates contextual copy. Uses custom label when type === custom for sharper personalization.
+function generateCopyVariant(type: EventTypeId, customLabel: string, index: number): string {
+  const list = COPY_VARIANTS[type] ?? COPY_VARIANTS.custom;
+  let copy = list[index % list.length];
+  if (type === "custom" && customLabel.trim().length > 0) {
+    const label = customLabel.trim();
+    const customs = [
+      `You're invited to our ${label.toLowerCase()} — let's make it one to remember.`,
+      `Save the date for our ${label.toLowerCase()}. It wouldn't be the same without you.`,
+      `Our ${label.toLowerCase()} is coming up and we'd love for you to be a part of it.`,
+      `Something special is happening — our ${label.toLowerCase()}. Hope you can be there.`,
+    ];
+    copy = customs[index % customs.length];
+  }
+  return copy;
+}
+
+// Schedule presets tailored to each event type so quick-add reflects user's category choice.
+const SCHEDULE_PRESETS: Record<EventTypeId, { t: string; time: string }[]> = {
+  wedding: [
+    { t: "Guests arrive", time: "3:30 PM" },
+    { t: "Ceremony", time: "4:00 PM" },
+    { t: "Cocktail hour", time: "5:00 PM" },
+    { t: "Reception", time: "6:30 PM" },
+    { t: "First dance", time: "7:30 PM" },
+    { t: "Toasts", time: "8:00 PM" },
+    { t: "Cake cutting", time: "9:00 PM" },
+    { t: "Bouquet toss", time: "9:30 PM" },
+    { t: "Open dance floor", time: "10:00 PM" },
+    { t: "Send-off", time: "11:30 PM" },
+  ],
+  birthday: [
+    { t: "Doors open", time: "7:00 PM" },
+    { t: "Welcome drinks", time: "7:30 PM" },
+    { t: "Dinner", time: "8:30 PM" },
+    { t: "Birthday speech", time: "9:30 PM" },
+    { t: "Cake & candles", time: "10:00 PM" },
+    { t: "DJ set", time: "10:30 PM" },
+    { t: "Surprise moment", time: "11:00 PM" },
+    { t: "After-party", time: "12:00 AM" },
+  ],
+  baby: [
+    { t: "Guests arrive", time: "2:00 PM" },
+    { t: "Brunch served", time: "2:30 PM" },
+    { t: "Games", time: "3:30 PM" },
+    { t: "Gift opening", time: "4:30 PM" },
+    { t: "Cake & toasts", time: "5:00 PM" },
+    { t: "Group photo", time: "5:30 PM" },
+  ],
+  graduation: [
+    { t: "Ceremony", time: "11:00 AM" },
+    { t: "Photos with family", time: "1:00 PM" },
+    { t: "Lunch reception", time: "2:00 PM" },
+    { t: "Speeches", time: "3:30 PM" },
+    { t: "Cake cutting", time: "4:30 PM" },
+    { t: "After-party", time: "8:00 PM" },
+  ],
+  vacation: [
+    { t: "Departure", time: "7:00 AM" },
+    { t: "Check-in", time: "2:00 PM" },
+    { t: "Welcome dinner", time: "7:30 PM" },
+    { t: "Excursion", time: "10:00 AM" },
+    { t: "Sunset toast", time: "6:30 PM" },
+    { t: "Group photo", time: "5:00 PM" },
+    { t: "Farewell dinner", time: "7:00 PM" },
+  ],
+  private: [
+    { t: "Doors open", time: "8:00 PM" },
+    { t: "Welcome cocktails", time: "8:30 PM" },
+    { t: "Dinner", time: "9:30 PM" },
+    { t: "Toasts", time: "10:30 PM" },
+    { t: "Live set", time: "11:00 PM" },
+    { t: "After-hours", time: "1:00 AM" },
+  ],
+  brand: [
+    { t: "Registration", time: "5:30 PM" },
+    { t: "Welcome remarks", time: "6:00 PM" },
+    { t: "Keynote", time: "6:30 PM" },
+    { t: "Panel", time: "7:15 PM" },
+    { t: "Networking", time: "8:00 PM" },
+    { t: "Press photos", time: "8:30 PM" },
+    { t: "Closing toast", time: "9:00 PM" },
+  ],
+  custom: [
+    { t: "Doors open", time: "6:00 PM" },
+    { t: "Welcome", time: "6:30 PM" },
+    { t: "Main moment", time: "7:30 PM" },
+    { t: "Toasts", time: "8:30 PM" },
+    { t: "After-party", time: "10:00 PM" },
+  ],
 };
 
 function StepHeader({ step, title }: { step: string; title: string }) {
@@ -99,6 +232,7 @@ export default function CreateEventScreen() {
   const [schedTime, setSchedTime] = useState<string>("");
   const [schedTitle, setSchedTitle] = useState<string>("");
   const [quickMode, setQuickMode] = useState<boolean>(false);
+  const [copyIndex, setCopyIndex] = useState<number>(0);
 
   const tpl = useMemo(() => TEMPLATES.find((t) => t.id === template) ?? TEMPLATES[0], [template]);
   const visibleTemplates = useMemo(
@@ -126,7 +260,7 @@ export default function CreateEventScreen() {
       cover,
       date: dateWithTime,
       venue: venue || "Venue · City",
-      message: message || COPY_SAMPLES[type],
+      message: message || generateCopyVariant(type, customLabel, 0),
       dressCode,
       schedule,
       template,
@@ -170,7 +304,7 @@ export default function CreateEventScreen() {
       cover,
       date: dateWithTime,
       venue: venue || "TBD",
-      message: message || COPY_SAMPLES[type],
+      message: message || generateCopyVariant(type, customLabel, 0),
       dressCode,
       schedule,
       template,
@@ -185,7 +319,32 @@ export default function CreateEventScreen() {
 
   const generateCopy = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setMessage(COPY_SAMPLES[type]);
+    setMessage(generateCopyVariant(type, customLabel, copyIndex));
+    setCopyIndex((i) => i + 1);
+  };
+  const rewriteCopy = () => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const base = message.trim();
+    if (!base) {
+      generateCopy();
+      return;
+    }
+    // Lightweight rewrite: cycles the user's draft through tonal openers based on event type.
+    const opener: Record<EventTypeId, string[]> = {
+      wedding: ["With love,", "Save the date —", "To our favorite people:"],
+      birthday: ["Birthday brief:", "Quick PSA:", "Heads up —"],
+      baby: ["With tiny joy,", "Save the date —", "Before the baby arrives:"],
+      graduation: ["It's official —", "Diploma incoming:", "Heads up —"],
+      vacation: ["Out-of-office vibes:", "Pack your bags —", "Quick reminder:"],
+      private: ["Just for you:", "An intimate note —", "Off the record:"],
+      brand: ["You're invited —", "Save the date —", "For our circle:"],
+      custom: ["Save the date —", "For you:", "Heads up —"],
+    };
+    const openers = opener[type] ?? opener.custom;
+    const o = openers[copyIndex % openers.length];
+    const stripped = base.replace(/^(With love,|Save the date —|To our favorite people:|Birthday brief:|Quick PSA:|Heads up —|With tiny joy,|Before the baby arrives:|It's official —|Diploma incoming:|Out-of-office vibes:|Pack your bags —|Quick reminder:|Just for you:|An intimate note —|Off the record:|You're invited —|For our circle:|For you:)\s*/i, "");
+    setMessage(`${o} ${stripped}`);
+    setCopyIndex((i) => i + 1);
   };
 
   const pickCustomCover = async () => {
@@ -472,10 +631,18 @@ export default function CreateEventScreen() {
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
                 <Text style={s.label}>Message to guests</Text>
-                <Pressable onPress={generateCopy} style={s.aiBtn}>
-                  <Wand2 color={C.pinkHi} size={14} />
-                  <Text style={s.aiBtnText}>AI write</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {message.trim().length > 0 ? (
+                    <Pressable onPress={rewriteCopy} style={s.aiBtn}>
+                      <RefreshCw color={C.pinkHi} size={13} />
+                      <Text style={s.aiBtnText}>Rewrite</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable onPress={generateCopy} style={s.aiBtn}>
+                    <Wand2 color={C.pinkHi} size={14} />
+                    <Text style={s.aiBtnText}>AI write</Text>
+                  </Pressable>
+                </View>
               </View>
               <TextInput
                 placeholder="A warm, personal note for your guests…"
@@ -504,27 +671,18 @@ export default function CreateEventScreen() {
                 Build a run-of-show so guests know what's happening when. Add as many moments as you like.
               </Text>
 
-              <Text style={s.label}>Quick add</Text>
+              <Text style={s.label}>Quick add for {EVENT_TYPES.find((e) => e.id === type)?.label.toLowerCase() ?? "your event"}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
                 style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
               >
-                {[
-                  { t: "Doors open", time: "6:00 PM" },
-                  { t: "Ceremony", time: "4:00 PM" },
-                  { t: "Cocktails", time: "5:30 PM" },
-                  { t: "Dinner", time: "7:00 PM" },
-                  { t: "Toasts", time: "8:30 PM" },
-                  { t: "Cake cutting", time: "9:00 PM" },
-                  { t: "First dance", time: "9:30 PM" },
-                  { t: "DJ set", time: "10:00 PM" },
-                  { t: "After-party", time: "12:00 AM" },
-                ].map((p) => (
+                {SCHEDULE_PRESETS[type].map((p) => (
                   <Pressable key={p.t} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
                     <Plus color={C.pinkHi} size={13} />
                     <Text style={s.presetChipText}>{p.t}</Text>
+                    <Text style={s.presetChipTime}>{p.time}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -811,6 +969,7 @@ const s = StyleSheet.create({
     borderColor: C.hair,
   },
   presetChipText: { color: C.text, fontSize: 13, fontWeight: "600" as const },
+  presetChipTime: { color: C.gold, fontSize: 11, fontWeight: "700" as const, marginLeft: 2 },
   schedItemBig: {
     flexDirection: "row",
     gap: 12,
