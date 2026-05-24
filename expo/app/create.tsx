@@ -64,9 +64,11 @@ const SHOT_PRESETS: { value: number; label: string; sub: string }[] = [
   { value: 5, label: "5", sub: "Mini roll" },
   { value: 10, label: "10", sub: "Disposable" },
   { value: 24, label: "24", sub: "Classic film" },
-  { value: 36, label: "36", sub: "Full roll" },
-  { value: 0, label: "\u221E", sub: "Unlimited" },
+  { value: 36, label: "36", sub: "Full roll · max" },
 ];
+
+const MAX_SHOTS_PER_GUEST = 36;
+const STORAGE_RETENTION_DAYS = 30;
 
 const REVEAL_OPTIONS: { id: RevealMode; label: string; sub: string }[] = [
   { id: "start", label: "At event start", sub: "Unlock the moment doors open" },
@@ -443,6 +445,7 @@ export default function CreateEventScreen() {
   const [copyIndex, setCopyIndex] = useState<number>(0);
   // Step 6 — rules
   const [shotsPerGuest, setShotsPerGuest] = useState<number>(10);
+  // Note: shots are capped at MAX_SHOTS_PER_GUEST (36). Server storage is retained for STORAGE_RETENTION_DAYS (30) days post-event.
   const [revealMode, setRevealMode] = useState<RevealMode>("plus24h");
   const [uploadPermission, setUploadPermission] = useState<UploadPerm>("all");
   const [privacy, setPrivacy] = useState<Privacy>("private");
@@ -1145,9 +1148,13 @@ export default function CreateEventScreen() {
               <View style={s.inlineHint}>
                 <CameraIcon color={C.gold} size={13} />
                 <Text style={s.inlineHintText}>
-                  {shotsPerGuest === 0
-                    ? "Guests can shoot as many as they like."
-                    : `Each guest gets ${shotsPerGuest} shots — makes every frame intentional.`}
+                  {`Each guest gets ${shotsPerGuest} shots (max ${MAX_SHOTS_PER_GUEST}) — makes every frame intentional.`}
+                </Text>
+              </View>
+              <View style={s.inlineHint}>
+                <Lock color={C.subtext} size={13} />
+                <Text style={s.inlineHintText}>
+                  {`Photos are stored on our servers for up to ${STORAGE_RETENTION_DAYS} days after the event, then automatically deleted. Download or export anything you want to keep.`}
                 </Text>
               </View>
 
@@ -1304,7 +1311,7 @@ export default function CreateEventScreen() {
                   <View style={s.rulesItem}>
                     <CameraIcon color={C.pinkHi} size={14} />
                     <Text style={s.rulesItemText}>
-                      {shotsPerGuest === 0 ? "Unlimited shots" : `${shotsPerGuest} shots / guest`}
+                      {`${shotsPerGuest} shots / guest`}
                     </Text>
                   </View>
                   <View style={s.rulesItem}>
