@@ -1,16 +1,21 @@
+import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
+  AlertTriangle,
   Bell,
   Check,
   ChevronRight,
   Crown,
+  Download,
   Globe,
   HelpCircle,
   LogOut,
+  PauseCircle,
   RotateCcw,
   Shield,
   Sparkles,
+  Trash2,
   Wand2,
   X,
 } from "lucide-react-native";
@@ -24,6 +29,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -59,6 +65,8 @@ export default function ProfileScreen() {
   const { profile, events, setProfile } = useEvents();
   const { language, update, reset, t, notificationsEnabled } = useOnboarding();
   const [langOpen, setLangOpen] = useState<boolean>(false);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [confirmText, setConfirmText] = useState<string>("");
 
   const totalPhotos = events.reduce((s, e) => s + e.photos.length, 0);
   const totalGuests = events.reduce((s, e) => s + e.rsvps.length, 0);
@@ -136,6 +144,77 @@ export default function ProfileScreen() {
   const chooseLang = async (code: LangCode) => {
     await update({ language: code });
     setLangOpen(false);
+  };
+
+  const exportData = async () => {
+    try {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        profile,
+        language,
+        events: events.map((e) => ({
+          id: e.id,
+          name: e.name,
+          type: e.type,
+          date: new Date(e.date).toISOString(),
+          venue: e.venue,
+          message: e.message,
+          dressCode: e.dressCode,
+          schedule: e.schedule,
+          rsvps: e.rsvps,
+          photoCount: e.photos.length,
+          invited: e.invited,
+          views: e.views,
+        })),
+      };
+      const json = JSON.stringify(payload, null, 2);
+      await Clipboard.setStringAsync(json);
+      Alert.alert(
+        "Data exported",
+        "Your SHEREHE data has been copied to the clipboard as JSON. Paste it into a notes app or email to save it."
+      );
+    } catch (e) {
+      console.log("[export]", e);
+      Alert.alert("Export failed", "We couldn't prepare your data right now. Please try again.");
+    }
+  };
+
+  const deactivate = () => {
+    Alert.alert(
+      "Deactivate account?",
+      "Your events and data stay safe on this device but the app will return to the welcome screen. You can sign back in any time to restore access.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Deactivate",
+          style: "destructive",
+          onPress: async () => {
+            await update({ authed: false, completed: false });
+            setDeleteOpen(false);
+            router.replace("/onboarding" as never);
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    try {
+      const keys = [
+        "sherehe.events.v1",
+        "sherehe.profile.v1",
+        "sherehe.onboarding.v1",
+      ];
+      const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+      await AsyncStorage.multiRemove(keys);
+    } catch (e) {
+      console.log("[delete]", e);
+    }
+    await reset();
+    setDeleteOpen(false);
+    setConfirmText("");
+    Alert.alert("Account deleted", "Your account and all data have been removed from this device.");
+    router.replace("/onboarding" as never);
   };
 
   return (
@@ -243,6 +322,27 @@ export default function ProfileScreen() {
             />
           </Card>
 
+          <Card style={{ gap: 4, padding: 6 }}>
+            <Row
+              icon={<Download color={C.text} size={18} />}
+              title="Export my data"
+              sub="Download your events, RSVPs and profile as JSON"
+              onPress={exportData}
+            />
+            <Row
+              icon={<PauseCircle color={C.gold} size={18} />}
+              title="Temporarily deactivate"
+              sub="Sign out without deleting your data"
+              onPress={deactivate}
+            />
+            <Row
+              icon={<Trash2 color={C.danger} size={18} />}
+              title="Delete account"
+              sub="Permanently remove your account and all data"
+              onPress={() => setDeleteOpen(true)}
+            />
+          </Card>
+
           <GhostButton
             title={profile.premium ? t("profile_pro_toggle_on") : t("profile_pro_toggle_off")}
             icon={LogOut}
@@ -252,6 +352,101 @@ export default function ProfileScreen() {
           <View style={{ height: 120 }} />
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={deleteOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDeleteOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Delete account</Text>
+              <Pressable
+                onPress={() => {
+                  setDeleteOpen(false);
+                  setConfirmText("");
+                }}
+                hitSlop={8}
+                style={styles.closeBtn}
+              >
+                <X color={C.text} size={18} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+              <View style={styles.warnBanner}>
+                <AlertTriangle color={C.danger} size={20} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.warnTitle}>This action is permanent</Text>
+                  <Text style={styles.warnSub}>
+                    Your events, RSVPs, photos and Pro status will be erased from this device and cannot be
+                    recovered.
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.deleteBody}>
+                Before deleting, you can export your data or temporarily deactivate your account instead.
+              </Text>
+
+              <Pressable onPress={exportData} style={styles.deleteOption}>
+                <Download color={C.text} size={18} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.deleteOptionTitle}>Export my data first</Text>
+                  <Text style={styles.deleteOptionSub}>Copy a JSON backup to the clipboard</Text>
+                </View>
+                <ChevronRight color={C.mute} size={16} />
+              </Pressable>
+
+              <Pressable onPress={deactivate} style={styles.deleteOption}>
+                <PauseCircle color={C.gold} size={18} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.deleteOptionTitle}>Deactivate instead</Text>
+                  <Text style={styles.deleteOptionSub}>Sign out and keep your data</Text>
+                </View>
+                <ChevronRight color={C.mute} size={16} />
+              </Pressable>
+
+              <View style={{ gap: 8, marginTop: 4 }}>
+                <Text style={styles.confirmLabel}>
+                  Type <Text style={{ color: C.danger, fontWeight: "800" as const }}>DELETE</Text> to confirm
+                </Text>
+                <TextInput
+                  value={confirmText}
+                  onChangeText={setConfirmText}
+                  placeholder="DELETE"
+                  placeholderTextColor={C.mute}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  style={styles.confirmInput}
+                />
+              </View>
+
+              <Pressable
+                disabled={confirmText.trim().toUpperCase() !== "DELETE"}
+                onPress={() =>
+                  Alert.alert(
+                    "Delete account permanently?",
+                    "There is no undo. Everything will be removed from this device.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Delete forever", style: "destructive", onPress: confirmDelete },
+                    ]
+                  )
+                }
+                style={[
+                  styles.deleteCta,
+                  confirmText.trim().toUpperCase() !== "DELETE" ? { opacity: 0.4 } : null,
+                ]}
+              >
+                <Trash2 color={C.text} size={18} />
+                <Text style={styles.deleteCtaText}>Delete my account</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={langOpen} animationType="slide" transparent onRequestClose={() => setLangOpen(false)}>
         <View style={styles.modalBackdrop}>
@@ -401,4 +596,53 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: C.hair,
   },
+
+  warnBanner: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,86,86,0.35)",
+    backgroundColor: "rgba(255,86,86,0.08)",
+  },
+  warnTitle: { color: C.text, fontWeight: "800" as const, fontSize: 14 },
+  warnSub: { color: C.subtext, fontSize: 12, marginTop: 4, lineHeight: 17 },
+  deleteBody: { color: C.subtext, fontSize: 13, lineHeight: 19 },
+  deleteOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  deleteOptionTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
+  deleteOptionSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
+  confirmLabel: { color: C.subtext, fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.3 },
+  confirmInput: {
+    backgroundColor: C.cardHi,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: C.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: C.hair,
+    letterSpacing: 2,
+    fontWeight: "700" as const,
+  },
+  deleteCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    backgroundColor: C.danger,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  deleteCtaText: { color: C.text, fontSize: 15, fontWeight: "800" as const, letterSpacing: 0.3 },
 });

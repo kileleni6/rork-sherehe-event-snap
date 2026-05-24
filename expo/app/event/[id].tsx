@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -157,10 +158,30 @@ export default function EventDetailScreen() {
   const shareInvite = async () => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
     const url = `https://sherehe.app/i/${event.id}`;
+    const message = `You're invited to ${event.name} \u2014 ${event.venue}. RSVP: ${url}`;
     try {
-      await Share.share({ message: `You're invited to ${event.name} — ${event.venue}. RSVP: ${url}` });
+      if (Platform.OS === "web") {
+        const navAny = (globalThis as unknown as { navigator?: { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> } }).navigator;
+        if (navAny?.share) {
+          await navAny.share({ title: event.name, text: message, url });
+          return;
+        }
+        await Clipboard.setStringAsync(url);
+        Alert.alert("Link copied", `Share this invite link with your guests:\n\n${url}`);
+        return;
+      }
+      const result = await Share.share({ message, url, title: event.name });
+      if (result.action === Share.dismissedAction) {
+        // user dismissed — no-op
+      }
     } catch (e) {
       console.log("[share]", e);
+      try {
+        await Clipboard.setStringAsync(url);
+        Alert.alert("Link copied", `We copied your invite link so you can paste it anywhere:\n\n${url}`);
+      } catch {
+        Alert.alert("Share invite", `Share this link with your guests:\n\n${url}`);
+      }
     }
   };
 

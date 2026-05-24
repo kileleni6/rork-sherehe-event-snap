@@ -1,10 +1,11 @@
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Check, ChevronLeft, Copy, Link as LinkIcon, Mail, MessageCircle, Share2 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InvitationCard } from "@/components/InvitationCard";
@@ -51,10 +52,36 @@ export default function InviteScreen() {
 
   const share = async (target: "share" | "copy") => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    if (target === "share") {
+    const message = `You're invited to ${event.name}! ${url}`;
+    if (target === "copy") {
       try {
-        await Share.share({ message: `You're invited to ${event.name}! ${url}` });
-      } catch {}
+        await Clipboard.setStringAsync(url);
+        Alert.alert("Copied", "Invite link copied to clipboard.");
+      } catch (e) {
+        console.log("[copy]", e);
+      }
+      return;
+    }
+    try {
+      if (Platform.OS === "web") {
+        const navAny = (globalThis as unknown as { navigator?: { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> } }).navigator;
+        if (navAny?.share) {
+          await navAny.share({ title: event.name, text: message, url });
+          return;
+        }
+        await Clipboard.setStringAsync(url);
+        Alert.alert("Link copied", `Paste this invite link anywhere:\n\n${url}`);
+        return;
+      }
+      await Share.share({ message, url, title: event.name });
+    } catch (e) {
+      console.log("[share]", e);
+      try {
+        await Clipboard.setStringAsync(url);
+        Alert.alert("Link copied", `Paste this invite link anywhere:\n\n${url}`);
+      } catch {
+        Alert.alert("Share invite", `Share this link:\n\n${url}`);
+      }
     }
   };
 
