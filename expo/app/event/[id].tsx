@@ -18,7 +18,7 @@ import {
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, Easing, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InvitationCard } from "@/components/InvitationCard";
 import { Card, Hair, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
@@ -138,6 +138,7 @@ function LiveCountdown({ ts }: { ts: number }) {
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { findById, unlockGallery, deleteEvent } = useEvents();
   const event = findById(id);
 
@@ -385,7 +386,7 @@ export default function EventDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={s.footer}>
+      <View style={[s.footer, { paddingBottom: 14 + Math.max(insets.bottom, 6) }]}>
         <PrimaryButton title="Share invitation" icon={Share2} onPress={shareInvite} />
       </View>
     </View>

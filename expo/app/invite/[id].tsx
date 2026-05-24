@@ -5,7 +5,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Check, ChevronLeft, Copy, Link as LinkIcon, Mail, MessageCircle, Share2 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InvitationCard } from "@/components/InvitationCard";
 import { Card, Chip, GhostButton, PrimaryButton, SectionTitle } from "@/components/ui";
@@ -16,6 +16,7 @@ import type { RsvpStatus } from "@/types/event";
 export default function InviteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { findById, addRsvp } = useEvents();
   const event = findById(id);
   const [name, setName] = useState<string>("");
@@ -168,7 +169,7 @@ export default function InviteScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <View style={s.footer}>
+      <View style={[s.footer, { paddingBottom: 14 + Math.max(insets.bottom, 6) }]}>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <GhostButton title="Copy link" icon={Copy} onPress={() => share("copy")} style={{ flex: 1 }} />
           <PrimaryButton title="Share" icon={MessageCircle} onPress={() => share("share")} style={{ flex: 1.2 }} />

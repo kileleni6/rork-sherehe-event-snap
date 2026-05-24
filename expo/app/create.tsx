@@ -27,7 +27,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Calendar } from "@/components/Calendar";
 import { InvitationCard } from "@/components/InvitationCard";
@@ -92,6 +92,36 @@ const COPY_VARIANTS: Record<EventTypeId, string[]> = {
     "An evening to mark the moment — meet the team, see the work, share the story.",
     "Curated drinks, a few surprises and the people behind the brand. Save the date.",
     "You're invited to a night where the brand meets its biggest believers.",
+  ],
+  engagement: [
+    "We said yes — now let's celebrate with the people who said yes to us first.",
+    "A ring, a promise, a party. Come toast the beginning of forever.",
+    "Engaged! Save the date for an evening of love, laughter and bubbly.",
+    "From 'will you' to 'we will' — please join us as we celebrate our engagement.",
+  ],
+  corporate: [
+    "Join us for an evening of insights, conversation and connection.",
+    "Doors open. Ideas flow. We'd love to have you in the room.",
+    "An invitation to spend the evening with the team behind the work.",
+    "A moment to mark what's next — please join us.",
+  ],
+  concert: [
+    "Lights down, volume up. You're on the guest list.",
+    "One night. One stage. Don't miss it.",
+    "Live music, good people, unforgettable energy. See you there.",
+    "This one's going to be loud — come sing along.",
+  ],
+  festival: [
+    "Sun, sound and a few thousand of our closest friends. Join us.",
+    "Pack your dancing shoes — the festival of the year is back.",
+    "Three stages, endless moments. You're invited.",
+    "Come for the music, stay for the magic.",
+  ],
+  religious: [
+    "With grateful hearts, we invite you to share in this sacred celebration.",
+    "Please join us as we gather in faith, family and joy.",
+    "A blessed occasion — your presence would mean the world.",
+    "With love and gratitude, we welcome you to celebrate with us.",
   ],
   custom: [
     "We've planned something special. We'd love to share it with you.",
@@ -184,6 +214,49 @@ const SCHEDULE_PRESETS: Record<EventTypeId, { t: string; time: string }[]> = {
     { t: "Press photos", time: "8:30 PM" },
     { t: "Closing toast", time: "9:00 PM" },
   ],
+  corporate: [
+    { t: "Check-in & coffee", time: "8:30 AM" },
+    { t: "Opening remarks", time: "9:00 AM" },
+    { t: "Keynote", time: "9:30 AM" },
+    { t: "Panel discussion", time: "10:30 AM" },
+    { t: "Networking break", time: "11:30 AM" },
+    { t: "Lunch", time: "12:30 PM" },
+    { t: "Breakout sessions", time: "2:00 PM" },
+    { t: "Closing toast", time: "6:00 PM" },
+  ],
+  engagement: [
+    { t: "Guests arrive", time: "6:00 PM" },
+    { t: "Welcome drinks", time: "6:30 PM" },
+    { t: "Ring reveal", time: "7:00 PM" },
+    { t: "Toasts", time: "7:30 PM" },
+    { t: "Dinner", time: "8:00 PM" },
+    { t: "Cake & sparklers", time: "9:30 PM" },
+    { t: "Dancing", time: "10:00 PM" },
+  ],
+  concert: [
+    { t: "Doors open", time: "6:30 PM" },
+    { t: "Opening act", time: "7:30 PM" },
+    { t: "Set change", time: "8:30 PM" },
+    { t: "Headline set", time: "9:00 PM" },
+    { t: "Encore", time: "10:45 PM" },
+    { t: "After-party", time: "11:30 PM" },
+  ],
+  festival: [
+    { t: "Gates open", time: "12:00 PM" },
+    { t: "Main stage opens", time: "1:00 PM" },
+    { t: "Food vendors", time: "2:00 PM" },
+    { t: "Headliner", time: "8:00 PM" },
+    { t: "Fireworks", time: "10:00 PM" },
+    { t: "Silent disco", time: "11:00 PM" },
+  ],
+  religious: [
+    { t: "Guests arrive", time: "10:00 AM" },
+    { t: "Service begins", time: "10:30 AM" },
+    { t: "Blessings & prayers", time: "11:15 AM" },
+    { t: "Family photos", time: "12:00 PM" },
+    { t: "Luncheon", time: "1:00 PM" },
+    { t: "Closing", time: "3:00 PM" },
+  ],
   custom: [
     { t: "Doors open", time: "6:00 PM" },
     { t: "Welcome", time: "6:30 PM" },
@@ -192,6 +265,98 @@ const SCHEDULE_PRESETS: Record<EventTypeId, { t: string; time: string }[]> = {
     { t: "After-party", time: "10:00 PM" },
   ],
 };
+
+// Parse "3:30 PM" / "7:00 AM" into 24h numbers.
+function parseTime(s: string): { h: number; m: number } {
+  const m = s.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return { h: 12, m: 0 };
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const ap = (m[3] || "").toUpperCase();
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return { h, m: min };
+}
+function formatTime12(h: number, m: number): string {
+  const ap = h >= 12 ? "PM" : "AM";
+  const hh = ((h + 11) % 12) + 1;
+  return `${hh}:${String(m).padStart(2, "0")} ${ap}`;
+}
+const TOD_ANCHOR: Record<TimeOfDayId, number> = { morning: 9, afternoon: 13, evening: 18, night: 21 };
+
+// Shift schedule presets so the first item sits near the chosen time-of-day.
+function shiftPresets(presets: { t: string; time: string }[], tod: TimeOfDayId): { t: string; time: string }[] {
+  if (presets.length === 0) return presets;
+  const first = parseTime(presets[0].time);
+  const target = TOD_ANCHOR[tod];
+  const delta = target - first.h;
+  if (delta === 0) return presets;
+  return presets.map((p) => {
+    const { h, m } = parseTime(p.time);
+    const nh = (h + delta + 24) % 24;
+    return { t: p.t, time: formatTime12(nh, m) };
+  });
+}
+
+// Activity suggestions for the manual "Add your own" dropdown, by event type.
+const ACTIVITY_SUGGESTIONS: Record<EventTypeId, string[]> = {
+  wedding: ["Welcome", "Ceremony", "Cocktails", "Reception", "First dance", "Toasts", "Cake cutting", "Bouquet toss", "Send-off"],
+  birthday: ["Doors open", "Welcome drinks", "Dinner", "Birthday speech", "Cake & candles", "DJ set", "After-party"],
+  baby: ["Brunch", "Games", "Gift opening", "Cake & toasts", "Group photo"],
+  graduation: ["Ceremony", "Photos", "Lunch", "Speeches", "Cake cutting", "After-party"],
+  vacation: ["Departure", "Check-in", "Welcome dinner", "Excursion", "Sunset toast", "Farewell dinner"],
+  private: ["Doors open", "Cocktails", "Dinner", "Toasts", "Live set", "After-hours"],
+  brand: ["Registration", "Welcome remarks", "Keynote", "Panel", "Networking", "Closing toast"],
+  corporate: ["Check-in", "Opening", "Keynote", "Panel", "Networking", "Lunch", "Workshop", "Closing"],
+  engagement: ["Welcome drinks", "Ring reveal", "Toasts", "Dinner", "Cake", "Dancing"],
+  concert: ["Doors open", "Opening act", "Headline set", "Encore", "After-party"],
+  festival: ["Gates open", "Main stage", "Food vendors", "Headliner", "Fireworks", "Silent disco"],
+  religious: ["Guests arrive", "Service", "Blessings", "Family photos", "Luncheon", "Closing"],
+  custom: ["Welcome", "Main moment", "Toasts", "Dinner", "Performance", "After-party"],
+};
+
+function WheelColumn({
+  label,
+  values,
+  value,
+  onChange,
+  format,
+}: {
+  label: string;
+  values: number[];
+  value: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+}) {
+  return (
+    <View style={s.wheelCol}>
+      <Text style={s.wheelColLabel}>{label.toUpperCase()}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.wheelList}
+        nestedScrollEnabled
+      >
+        {values.map((v) => {
+          const active = v === value;
+          return (
+            <Pressable
+              key={v}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                onChange(v);
+              }}
+              style={[s.wheelItem, active ? s.wheelItemActive : null]}
+            >
+              <Text style={[s.wheelItemText, active ? s.wheelItemTextActive : null]}>
+                {format(v)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
 
 function StepHeader({ step, title }: { step: string; title: string }) {
   return (
@@ -205,6 +370,7 @@ function StepHeader({ step, title }: { step: string; title: string }) {
 export default function CreateEventScreen() {
   const router = useRouter();
   const { createEvent } = useEvents();
+  const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<number>(0);
   const [name, setName] = useState<string>("");
@@ -229,8 +395,10 @@ export default function CreateEventScreen() {
   const [hour, setHour] = useState<number>(19);
   const [minute, setMinute] = useState<number>(0);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
-  const [schedTime, setSchedTime] = useState<string>("");
+  const [schedHour, setSchedHour] = useState<number>(19);
+  const [schedMinute, setSchedMinute] = useState<number>(0);
   const [schedTitle, setSchedTitle] = useState<string>("");
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [quickMode, setQuickMode] = useState<boolean>(false);
   const [copyIndex, setCopyIndex] = useState<number>(0);
 
@@ -338,6 +506,11 @@ export default function CreateEventScreen() {
       vacation: ["Out-of-office vibes:", "Pack your bags —", "Quick reminder:"],
       private: ["Just for you:", "An intimate note —", "Off the record:"],
       brand: ["You're invited —", "Save the date —", "For our circle:"],
+      corporate: ["You're invited —", "Save the date —", "For our circle:"],
+      engagement: ["With love,", "We're engaged —", "Save the date —"],
+      concert: ["On the guest list:", "Loud & clear —", "Save the date —"],
+      festival: ["Open-air alert:", "Pack your dancing shoes —", "Save the date —"],
+      religious: ["With grateful hearts,", "Please join us —", "With blessings —"],
       custom: ["Save the date —", "For you:", "Heads up —"],
     };
     const openers = opener[type] ?? opener.custom;
@@ -370,11 +543,17 @@ export default function CreateEventScreen() {
   };
 
   const addScheduleItem = () => {
-    if (!schedTime.trim() || !schedTitle.trim()) return;
+    if (!schedTitle.trim()) return;
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    setSchedule((prev) => [...prev, { id: `s_${Date.now()}`, time: schedTime.trim(), title: schedTitle.trim() }]);
-    setSchedTime("");
+    const time = formatTime12(schedHour, schedMinute);
+    setSchedule((prev) => [...prev, { id: `s_${Date.now()}`, time, title: schedTitle.trim() }]);
     setSchedTitle("");
+    setShowSuggestions(false);
+  };
+  const pickSuggestion = (s: string) => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    setSchedTitle(s);
+    setShowSuggestions(false);
   };
   const addSchedulePreset = (time: string, title: string) => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
@@ -671,15 +850,19 @@ export default function CreateEventScreen() {
                 Build a run-of-show so guests know what's happening when. Add as many moments as you like.
               </Text>
 
-              <Text style={s.label}>Quick add for {EVENT_TYPES.find((e) => e.id === type)?.label.toLowerCase() ?? "your event"}</Text>
+              <Text style={s.label}>
+                Quick add for {EVENT_TYPES.find((e) => e.id === type)?.label.toLowerCase() ?? "your event"}
+                {" · "}
+                <Text style={{ color: C.gold }}>{TIME_OF_DAY.find((t) => t.id === timeOfDay)?.label}</Text>
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
                 style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
               >
-                {SCHEDULE_PRESETS[type].map((p) => (
-                  <Pressable key={p.t} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
+                {shiftPresets(SCHEDULE_PRESETS[type], timeOfDay).map((p, idx) => (
+                  <Pressable key={`${p.t}-${idx}`} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
                     <Plus color={C.pinkHi} size={13} />
                     <Text style={s.presetChipText}>{p.t}</Text>
                     <Text style={s.presetChipTime}>{p.time}</Text>
@@ -717,30 +900,98 @@ export default function CreateEventScreen() {
               </View>
 
               <Text style={s.label}>Add your own</Text>
-              <View style={s.schedInputRow}>
-                <TextInput
-                  placeholder="7:00 PM"
-                  placeholderTextColor={C.mute}
-                  value={schedTime}
-                  onChangeText={setSchedTime}
-                  style={[s.input, { flex: 0.7 }]}
-                />
-                <TextInput
-                  placeholder="Reception & dinner"
-                  placeholderTextColor={C.mute}
-                  value={schedTitle}
-                  onChangeText={setSchedTitle}
-                  style={[s.input, { flex: 1.3 }]}
-                />
+              <View style={s.customSchedCard}>
+                <Text style={s.miniLabel}>Activity</Text>
+                <View style={{ position: "relative", zIndex: 5 }}>
+                  <Pressable
+                    onPress={() => setShowSuggestions((v) => !v)}
+                    style={s.suggestRow}
+                  >
+                    <TextInput
+                      placeholder="e.g. Reception & dinner"
+                      placeholderTextColor={C.mute}
+                      value={schedTitle}
+                      onChangeText={(v) => { setSchedTitle(v); setShowSuggestions(false); }}
+                      style={s.suggestInput}
+                      onFocus={() => setShowSuggestions(false)}
+                    />
+                    <Pressable
+                      onPress={() => setShowSuggestions((v) => !v)}
+                      style={s.suggestToggle}
+                      hitSlop={8}
+                    >
+                      <ChevronRight
+                        color={C.pinkHi}
+                        size={16}
+                        style={{ transform: [{ rotate: showSuggestions ? "-90deg" : "90deg" }] }}
+                      />
+                    </Pressable>
+                  </Pressable>
+                  {showSuggestions ? (
+                    <View style={s.suggestList}>
+                      {ACTIVITY_SUGGESTIONS[type].map((sug) => (
+                        <Pressable key={sug} onPress={() => pickSuggestion(sug)} style={s.suggestItem}>
+                          <Sparkles color={C.gold} size={12} />
+                          <Text style={s.suggestItemText}>{sug}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+
+                <Text style={[s.miniLabel, { marginTop: 14 }]}>Time</Text>
+                <View style={s.wheelRow}>
+                  <WheelColumn
+                    label="Hour"
+                    values={Array.from({ length: 12 }, (_, i) => i + 1)}
+                    value={((schedHour + 11) % 12) + 1}
+                    onChange={(v) => {
+                      const isPM = schedHour >= 12;
+                      const h24 = v === 12 ? (isPM ? 12 : 0) : isPM ? v + 12 : v;
+                      setSchedHour(h24);
+                    }}
+                    format={(v) => String(v).padStart(2, "0")}
+                  />
+                  <Text style={s.wheelColon}>:</Text>
+                  <WheelColumn
+                    label="Min"
+                    values={[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]}
+                    value={schedMinute - (schedMinute % 5)}
+                    onChange={setSchedMinute}
+                    format={(v) => String(v).padStart(2, "0")}
+                  />
+                  <View style={s.ampmCol}>
+                    {["AM", "PM"].map((p) => {
+                      const isPM = schedHour >= 12;
+                      const active = (p === "PM") === isPM;
+                      return (
+                        <Pressable
+                          key={p}
+                          onPress={() => {
+                            if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                            if (p === "PM" && !isPM) setSchedHour((h) => (h + 12) % 24);
+                            if (p === "AM" && isPM) setSchedHour((h) => (h + 12) % 24);
+                          }}
+                          style={[s.ampmBtn, active ? s.ampmBtnActive : null]}
+                        >
+                          <Text style={[s.ampmText, active ? { color: C.text } : null]}>{p}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={addScheduleItem}
+                  disabled={!schedTitle.trim()}
+                  style={[s.addRowBtn, { opacity: !schedTitle.trim() ? 0.4 : 1, marginTop: 14 }]}
+                >
+                  <Plus color={C.text} size={18} />
+                  <Text style={s.addRowBtnText}>
+                    Add at {formatTime12(schedHour, schedMinute)}
+                  </Text>
+                </Pressable>
               </View>
-              <Pressable
-                onPress={addScheduleItem}
-                disabled={!schedTime.trim() || !schedTitle.trim()}
-                style={[s.addRowBtn, { opacity: !schedTime.trim() || !schedTitle.trim() ? 0.4 : 1 }]}
-              >
-                <Plus color={C.text} size={18} />
-                <Text style={s.addRowBtnText}>Add to schedule</Text>
-              </Pressable>
             </>
           ) : null}
 
@@ -819,7 +1070,7 @@ export default function CreateEventScreen() {
           ) : null}
         </ScrollView>
 
-        <View style={s.footer}>
+        <View style={[s.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
           {step > 0 ? <GhostButton title="Back" onPress={back} style={{ flex: 1 }} /> : null}
           {step < TOTAL_STEPS - 1 ? (
             <PrimaryButton title="Continue" icon={ChevronRight} onPress={next} style={{ flex: 1.4 }} />
@@ -1015,7 +1266,68 @@ const s = StyleSheet.create({
   },
   emptyScheduleText: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
   emptyScheduleSub: { color: C.mute, fontSize: 12, textAlign: "center" },
-  schedInputRow: { flexDirection: "row", gap: 6, alignItems: "center" },
+  customSchedCard: {
+    backgroundColor: C.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.hair,
+    padding: 14,
+  },
+  miniLabel: { color: C.mute, fontSize: 10, fontWeight: "800" as const, letterSpacing: 1.5, marginBottom: 6 },
+  suggestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.hair,
+    paddingRight: 6,
+  },
+  suggestInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, color: C.text, fontSize: 15 },
+  suggestToggle: {
+    width: 32, height: 32, alignItems: "center", justifyContent: "center",
+    borderRadius: 8, backgroundColor: "rgba(255,45,122,0.12)",
+  },
+  suggestList: {
+    position: "absolute", top: "100%", left: 0, right: 0,
+    marginTop: 6,
+    backgroundColor: C.cardHi,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.hair,
+    paddingVertical: 6,
+    zIndex: 10,
+    elevation: 6,
+  },
+  suggestItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  suggestItemText: { color: C.text, fontSize: 14, fontWeight: "600" as const },
+  wheelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  wheelCol: {
+    flex: 1,
+    backgroundColor: C.bg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.hair,
+    height: 110,
+    overflow: "hidden",
+  },
+  wheelColLabel: {
+    color: C.mute, fontSize: 9, fontWeight: "800" as const, letterSpacing: 1.5,
+    textAlign: "center", paddingTop: 4,
+  },
+  wheelList: { paddingVertical: 4 },
+  wheelItem: { paddingHorizontal: 14, paddingVertical: 6, alignItems: "center" },
+  wheelItemActive: { backgroundColor: "rgba(255,45,122,0.16)" },
+  wheelItemText: { color: C.subtext, fontSize: 16, fontWeight: "600" as const, fontVariant: ["tabular-nums"] },
+  wheelItemTextActive: { color: C.text, fontSize: 20, fontWeight: "800" as const },
+  wheelColon: { color: C.pinkHi, fontSize: 28, fontWeight: "800" as const, marginBottom: 8 },
+  ampmCol: { gap: 6, justifyContent: "center" },
+  ampmBtn: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: C.bg, borderWidth: 1, borderColor: C.hair,
+  },
+  ampmBtnActive: { backgroundColor: C.pink, borderColor: C.pink },
+  ampmText: { color: C.subtext, fontSize: 12, fontWeight: "800" as const, letterSpacing: 0.5 },
   addRowBtn: {
     marginTop: 10,
     flexDirection: "row",

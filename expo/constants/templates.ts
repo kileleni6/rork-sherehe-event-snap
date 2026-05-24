@@ -253,8 +253,13 @@ export const TEMPLATES: InvitationTemplate[] = [
 export const EVENT_TYPES = [
   { id: "wedding", label: "Wedding", emoji: "💍" },
   { id: "birthday", label: "Birthday", emoji: "🎂" },
+  { id: "engagement", label: "Engagement", emoji: "💎" },
   { id: "baby", label: "Baby Shower", emoji: "👶" },
   { id: "graduation", label: "Graduation", emoji: "🎓" },
+  { id: "corporate", label: "Corporate", emoji: "🏢" },
+  { id: "concert", label: "Concert", emoji: "🎤" },
+  { id: "festival", label: "Festival", emoji: "🎪" },
+  { id: "religious", label: "Religious", emoji: "🕊" },
   { id: "vacation", label: "Vacation", emoji: "🏝" },
   { id: "private", label: "Private Party", emoji: "🥂" },
   { id: "brand", label: "Brand Event", emoji: "✨" },

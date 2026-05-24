@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import React, { memo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { C } from "@/constants/colors";
 
@@ -31,6 +31,7 @@ export const OnboardShell = memo(function OnboardShell({
   onBack,
 }: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const back = () => {
     if (onBack) onBack();
     else router.back();
@@ -78,7 +79,11 @@ export const OnboardShell = memo(function OnboardShell({
           <View style={{ marginTop: 24, flex: 1 }}>{children}</View>
         </ScrollView>
 
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? (
+          <View style={[styles.footer, { paddingBottom: 16 + Math.max(insets.bottom, 8) }]}>
+            {footer}
+          </View>
+        ) : null}
       </SafeAreaView>
     </View>
   );
@@ -124,8 +129,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   footer: {
-    padding: 20,
-    paddingBottom: 28,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     gap: 10,
     borderTopWidth: 1,
     borderTopColor: C.hair,

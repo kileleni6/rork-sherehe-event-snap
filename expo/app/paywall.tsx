@@ -4,7 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { Check, Crown, Sparkles, X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
@@ -65,6 +65,7 @@ const PERKS = [
 
 export default function PaywallScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { setProfile } = useEvents();
   const [tier, setTier] = useState<TierId>("medium");
 
@@ -152,7 +153,7 @@ export default function PaywallScreen() {
           <Text style={ps.legal}>One-time per event. Pay with Apple Pay, Google Pay or card via Stripe.</Text>
         </ScrollView>
 
-        <View style={ps.footer}>
+        <View style={[ps.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
           <PrimaryButton title={`Unlock ${TIERS.find((t) => t.id === tier)?.name} · ${TIERS.find((t) => t.id === tier)?.price}`} onPress={subscribe} />
           <Pressable onPress={() => router.back()} style={{ alignSelf: "center", marginTop: 10 }}>
             <Text style={ps.maybe}>Maybe later</Text>
