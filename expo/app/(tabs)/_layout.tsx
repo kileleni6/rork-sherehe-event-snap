@@ -5,8 +5,10 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { C } from "@/constants/colors";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function TabLayout() {
+  const { t } = useOnboarding();
   return (
     <Tabs
       screenOptions={{
@@ -40,19 +42,19 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: "Events", tabBarIcon: ({ color }) => <Calendar color={color} size={22} /> }}
+        options={{ title: t("tab_events"), tabBarIcon: ({ color }) => <Calendar color={color} size={22} /> }}
       />
       <Tabs.Screen
         name="camera"
-        options={{ title: "Camera", tabBarIcon: ({ color }) => <Camera color={color} size={22} /> }}
+        options={{ title: t("tab_camera"), tabBarIcon: ({ color }) => <Camera color={color} size={22} /> }}
       />
       <Tabs.Screen
         name="gallery"
-        options={{ title: "Gallery", tabBarIcon: ({ color }) => <Images color={color} size={22} /> }}
+        options={{ title: t("tab_gallery"), tabBarIcon: ({ color }) => <Images color={color} size={22} /> }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: "Profile", tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
+        options={{ title: t("tab_profile"), tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
       />
     </Tabs>
   );

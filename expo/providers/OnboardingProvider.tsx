@@ -1,6 +1,6 @@
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import { t as translate, type LangCode } from "@/lib/i18n";
@@ -32,6 +32,7 @@ const DEFAULT: OnboardingState = {
 };
 
 export const [OnboardingProvider, useOnboarding] = createContextHook(() => {
+  const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["onboarding"],
     queryFn: async (): Promise<OnboardingState> => {
@@ -57,17 +58,20 @@ export const [OnboardingProvider, useOnboarding] = createContextHook(() => {
 
   const update = useCallback(
     async (patch: Partial<OnboardingState>) => {
-      const next = { ...state, ...patch };
+      const current = (qc.getQueryData(["onboarding"]) as OnboardingState | undefined) ?? state;
+      const next = { ...current, ...patch };
+      // Update cache synchronously so dependent components (e.g. the gate)
+      // see the change immediately and we avoid a redirect race.
+      qc.setQueryData(["onboarding"], next);
       await persist(next);
-      query.refetch();
     },
-    [state, persist, query]
+    [state, persist, qc]
   );
 
   const reset = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
-    query.refetch();
-  }, [query]);
+    qc.setQueryData(["onboarding"], DEFAULT);
+  }, [qc]);
 
   const tt = useCallback((key: string) => translate(key, state.language), [state.language]);
 

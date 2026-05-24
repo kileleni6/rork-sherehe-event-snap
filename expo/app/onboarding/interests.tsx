@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { ArrowRight, Plus, X } from "lucide-react-native";
+import { ArrowRight, Check, Plus, X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -27,39 +27,30 @@ const OPTIONS = [
 export default function InterestsScreen() {
   const router = useRouter();
   const { interests, update, t } = useOnboarding();
-  const [picked, setPicked] = useState<string[]>(interests);
-  const [customs, setCustoms] = useState<string[]>(
-    interests.filter((x) => x.startsWith("custom:")).map((x) => x.slice(7))
-  );
+  const initial = interests[0] ?? "";
+  const [picked, setPicked] = useState<string>(initial);
   const [draft, setDraft] = useState<string>("");
 
-  const toggle = (id: string) => {
+  const choose = (id: string) => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    setPicked(id);
   };
 
   const addCustom = () => {
     const trimmed = draft.trim();
     if (!trimmed) return;
-    if (customs.includes(trimmed)) {
-      setDraft("");
-      return;
-    }
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    const next = [...customs, trimmed].slice(0, 6);
-    setCustoms(next);
-    setPicked((p) => [...p, `custom:${trimmed}`]);
+    setPicked(`custom:${trimmed}`);
     setDraft("");
   };
 
-  const removeCustom = (label: string) => {
+  const clearCustom = () => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    setCustoms((c) => c.filter((x) => x !== label));
-    setPicked((p) => p.filter((x) => x !== `custom:${label}`));
+    setPicked("");
   };
 
   const next = async () => {
-    await update({ interests: picked });
+    await update({ interests: picked ? [picked] : [] });
     router.push("/onboarding/paywall" as never);
   };
 
@@ -68,7 +59,7 @@ export default function InterestsScreen() {
     router.push("/onboarding/paywall" as never);
   };
 
-  const totalPicked = picked.length;
+  const customLabel = picked.startsWith("custom:") ? picked.slice(7) : null;
 
   return (
     <OnboardShell
@@ -83,7 +74,7 @@ export default function InterestsScreen() {
             title={t("continue")}
             icon={ArrowRight}
             onPress={next}
-            disabled={totalPicked === 0}
+            disabled={!picked}
           />
           <GhostButton title={t("skip_now")} onPress={skip} />
         </View>
@@ -91,15 +82,20 @@ export default function InterestsScreen() {
     >
       <View style={styles.grid}>
         {OPTIONS.map((o) => {
-          const active = picked.includes(o.id);
+          const active = picked === o.id;
           return (
             <Pressable
               key={o.id}
-              onPress={() => toggle(o.id)}
+              onPress={() => choose(o.id)}
               style={[styles.chip, active ? styles.chipActive : null]}
             >
               <Text style={styles.emoji}>{o.emoji}</Text>
               <Text style={[styles.label, active ? { color: C.text } : null]}>{o.label}</Text>
+              {active ? (
+                <View style={styles.tick}>
+                  <Check color={C.text} size={10} />
+                </View>
+              ) : null}
             </Pressable>
           );
         })}
@@ -132,18 +128,17 @@ export default function InterestsScreen() {
           </Pressable>
         </View>
 
-        {customs.length > 0 ? (
+        {customLabel ? (
           <View style={styles.customsWrap}>
-            {customs.map((label) => (
-              <View key={label} style={styles.customChip}>
-                <Text style={styles.customChipText} numberOfLines={1}>
-                  {label}
-                </Text>
-                <Pressable onPress={() => removeCustom(label)} hitSlop={6}>
-                  <X color={C.text} size={14} />
-                </Pressable>
-              </View>
-            ))}
+            <View style={styles.customChip}>
+              <Check color={C.text} size={14} />
+              <Text style={styles.customChipText} numberOfLines={1}>
+                {customLabel}
+              </Text>
+              <Pressable onPress={clearCustom} hitSlop={6}>
+                <X color={C.text} size={14} />
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </View>
@@ -167,6 +162,17 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "rgba(255,45,122,0.12)", borderColor: C.pink },
   emoji: { fontSize: 24 },
   label: { color: C.subtext, fontSize: 12, fontWeight: "700" as const, textAlign: "center" },
+  tick: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: C.pink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   customSection: {
     marginTop: 26,
     padding: 16,
@@ -209,7 +215,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(255,45,122,0.14)",
+    backgroundColor: "rgba(255,45,122,0.18)",
     borderWidth: 1,
     borderColor: C.pink,
     maxWidth: "100%",

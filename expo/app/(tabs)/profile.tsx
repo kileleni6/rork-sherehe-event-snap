@@ -1,21 +1,47 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Bell, ChevronRight, Crown, HelpCircle, LogOut, Shield, Sparkles, Wand2 } from "lucide-react-native";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Bell,
+  Check,
+  ChevronRight,
+  Crown,
+  Globe,
+  HelpCircle,
+  LogOut,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Wand2,
+  X,
+} from "lucide-react-native";
+import React, { useState } from "react";
+import {
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Card, GhostButton, PrimaryButton, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { LANGUAGES, type LangCode } from "@/lib/i18n";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 
 interface RowProps {
   icon: React.ReactNode;
   title: string;
   sub?: string;
+  trailing?: React.ReactNode;
   onPress?: () => void;
 }
-function Row({ icon, title, sub, onPress }: RowProps) {
+function Row({ icon, title, sub, trailing, onPress }: RowProps) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}>
       <View style={styles.rowIcon}>{icon}</View>
@@ -23,7 +49,7 @@ function Row({ icon, title, sub, onPress }: RowProps) {
         <Text style={styles.rowTitle}>{title}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
-      <ChevronRight color={C.mute} size={18} />
+      {trailing ?? <ChevronRight color={C.mute} size={18} />}
     </Pressable>
   );
 }
@@ -31,8 +57,86 @@ function Row({ icon, title, sub, onPress }: RowProps) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, events, setProfile } = useEvents();
+  const { language, update, reset, t, notificationsEnabled } = useOnboarding();
+  const [langOpen, setLangOpen] = useState<boolean>(false);
+
   const totalPhotos = events.reduce((s, e) => s + e.photos.length, 0);
   const totalGuests = events.reduce((s, e) => s + e.rsvps.length, 0);
+  const currentLang = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
+
+  const handleAiWriter = () => {
+    if (events[0]) {
+      router.push(`/event/${events[0].id}` as never);
+    } else {
+      Alert.alert(
+        "AI invitation writer",
+        "Create an event first — you'll see the AI write button on the message field."
+      );
+    }
+  };
+
+  const handleBestMoments = () => {
+    if (events[0]) {
+      router.push(`/gallery/${events[0].id}` as never);
+    } else {
+      Alert.alert("Best moments", "Capture photos at your first event to unlock curated reels.");
+    }
+  };
+
+  const handleNotifications = () => {
+    Alert.alert(
+      t("profile_notifications"),
+      notificationsEnabled
+        ? "Notifications are enabled. Manage them from your device settings."
+        : "Notifications are off. Open device settings to enable them.",
+      [
+        { text: "Cancel", style: "cancel" },
+        ...(Platform.OS !== "web"
+          ? [{ text: "Open settings", onPress: () => Linking.openSettings().catch(() => {}) }]
+          : []),
+      ]
+    );
+  };
+
+  const handlePrivacy = () => {
+    Alert.alert(
+      "Privacy",
+      "All events are private by default. Guest lists, photos and RSVPs never leave your event."
+    );
+  };
+
+  const handleHelp = () => {
+    Alert.alert("Help & support", "Need a hand? Email hello@sherehe.app and we'll get back fast.", [
+      { text: "Close", style: "cancel" },
+      {
+        text: "Email us",
+        onPress: () => Linking.openURL("mailto:hello@sherehe.app").catch(() => {}),
+      },
+    ]);
+  };
+
+  const handleRestart = () => {
+    Alert.alert(
+      t("profile_restart"),
+      "This will sign you out of the local profile and show the welcome screens again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restart",
+          style: "destructive",
+          onPress: async () => {
+            await reset();
+            router.replace("/onboarding" as never);
+          },
+        },
+      ]
+    );
+  };
+
+  const chooseLang = async (code: LangCode) => {
+    await update({ language: code });
+    setLangOpen(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -52,22 +156,26 @@ export default function ProfileScreen() {
               <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
             </LinearGradient>
             <Text style={styles.name}>{profile.name}</Text>
-            {profile.premium ? <Tag label="✦ Pro member" tone="gold" /> : <Tag label="Free plan" tone="mute" />}
+            {profile.premium ? (
+              <Tag label={t("profile_pro")} tone="gold" />
+            ) : (
+              <Tag label={t("profile_free")} tone="mute" />
+            )}
 
             <View style={styles.statsRow}>
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{events.length}</Text>
-                <Text style={styles.statLabel}>Events</Text>
+                <Text style={styles.statLabel}>{t("profile_events")}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{totalGuests}</Text>
-                <Text style={styles.statLabel}>RSVPs</Text>
+                <Text style={styles.statLabel}>{t("profile_rsvps")}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{totalPhotos}</Text>
-                <Text style={styles.statLabel}>Photos</Text>
+                <Text style={styles.statLabel}>{t("profile_photos")}</Text>
               </View>
             </View>
           </View>
@@ -85,8 +193,8 @@ export default function ProfileScreen() {
               />
               <Crown color={C.gold} size={26} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.upgradeTitle}>Go Pro</Text>
-                <Text style={styles.upgradeSub}>Premium templates, more guests, HD downloads</Text>
+                <Text style={styles.upgradeTitle}>{t("profile_go_pro")}</Text>
+                <Text style={styles.upgradeSub}>{t("profile_go_pro_sub")}</Text>
               </View>
               <ChevronRight color={C.text} size={22} />
             </Pressable>
@@ -95,24 +203,93 @@ export default function ProfileScreen() {
           <Card style={{ gap: 4, padding: 6 }}>
             <Row
               icon={<Wand2 color={C.pinkHi} size={18} />}
-              title="AI invitation writer"
-              sub="Generate poetic invite copy"
+              title={t("profile_ai_writer")}
+              sub={t("profile_ai_writer_sub")}
+              onPress={handleAiWriter}
             />
-            <Row icon={<Sparkles color={C.gold} size={18} />} title="Best moments" sub="Curated reels from each event" />
-            <Row icon={<Bell color={C.text} size={18} />} title="Notifications" sub="RSVPs, reveals, reminders" />
-            <Row icon={<Shield color={C.text} size={18} />} title="Privacy" sub="Private by default" />
-            <Row icon={<HelpCircle color={C.text} size={18} />} title="Help & support" />
+            <Row
+              icon={<Sparkles color={C.gold} size={18} />}
+              title={t("profile_best_moments")}
+              sub={t("profile_best_moments_sub")}
+              onPress={handleBestMoments}
+            />
+            <Row
+              icon={<Globe color={C.text} size={18} />}
+              title={t("profile_language")}
+              sub={`${currentLang.flag}  ${currentLang.native}`}
+              onPress={() => setLangOpen(true)}
+            />
+            <Row
+              icon={<Bell color={C.text} size={18} />}
+              title={t("profile_notifications")}
+              sub={t("profile_notifications_sub")}
+              onPress={handleNotifications}
+            />
+            <Row
+              icon={<Shield color={C.text} size={18} />}
+              title={t("profile_privacy")}
+              sub={t("profile_privacy_sub")}
+              onPress={handlePrivacy}
+            />
+            <Row
+              icon={<HelpCircle color={C.text} size={18} />}
+              title={t("profile_help")}
+              onPress={handleHelp}
+            />
+            <Row
+              icon={<RotateCcw color={C.subtext} size={18} />}
+              title={t("profile_restart")}
+              onPress={handleRestart}
+            />
           </Card>
 
           <GhostButton
-            title={profile.premium ? "Switch to Free (demo)" : "Activate Pro (demo)"}
+            title={profile.premium ? t("profile_pro_toggle_on") : t("profile_pro_toggle_off")}
             icon={LogOut}
             onPress={() => setProfile({ premium: !profile.premium })}
           />
-          <PrimaryButton title="Manage events" onPress={() => router.push("/(tabs)" as never)} />
+          <PrimaryButton title={t("profile_manage")} onPress={() => router.push("/(tabs)" as never)} />
           <View style={{ height: 120 }} />
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={langOpen} animationType="slide" transparent onRequestClose={() => setLangOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t("profile_language")}</Text>
+              <Pressable onPress={() => setLangOpen(false)} hitSlop={8} style={styles.closeBtn}>
+                <X color={C.text} size={18} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}>
+              {LANGUAGES.map((l) => {
+                const active = l.code === language;
+                return (
+                  <Pressable
+                    key={l.code}
+                    onPress={() => chooseLang(l.code)}
+                    style={[styles.langRow, active ? styles.langRowActive : null]}
+                  >
+                    <Text style={{ fontSize: 24 }}>{l.flag}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.langNative}>{l.native}</Text>
+                      <Text style={styles.langName}>{l.name}</Text>
+                    </View>
+                    {active ? (
+                      <View style={styles.langCheck}>
+                        <Check color={C.text} size={14} />
+                      </View>
+                    ) : (
+                      <View style={styles.langCheckEmpty} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -169,4 +346,59 @@ const styles = StyleSheet.create({
   },
   rowTitle: { color: C.text, fontSize: 15, fontWeight: "600" as const },
   rowSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
+
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: C.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "85%",
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  modalTitle: { color: C.text, fontSize: 18, fontWeight: "800" as const, letterSpacing: -0.3 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.hair,
+  },
+  langRowActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.08)" },
+  langNative: { color: C.text, fontWeight: "700" as const, fontSize: 15 },
+  langName: { color: C.mute, fontSize: 12, marginTop: 2 },
+  langCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: C.pink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langCheckEmpty: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: C.hair,
+  },
 });
