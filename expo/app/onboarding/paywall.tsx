@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Check, Crown, Sparkles } from "lucide-react-native";
+import { Check, Crown, HardDrive, Sparkles, Tag as TagIcon, Users } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -10,6 +10,7 @@ import { PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
+
 
 type TierId = "starter" | "celebration" | "premium" | "large" | "enterprise" | "super";
 
@@ -45,8 +46,8 @@ const PERKS = [
 
 export default function OnboardingPaywallScreen() {
   const router = useRouter();
-  const { update } = useOnboarding();
-  const { setProfile } = useEvents();
+  const { update, t } = useOnboarding();
+  const { setProfile, retentionDays } = useEvents();
   const [tier, setTier] = useState<TierId>("celebration");
 
   const shine = useRef(new Animated.Value(0)).current;
@@ -69,10 +70,10 @@ export default function OnboardingPaywallScreen() {
   const subscribe = () => goAuth(!(selected?.free));
   const skip = () => goAuth(false);
   const ctaTitle = selected?.contact
-    ? `Contact sales · ${selected.name}`
+    ? t("paywall_cta_contact", { name: selected.name })
     : selected?.free
-      ? `Start free · ${selected.name}`
-      : `Unlock ${selected?.name} · ${selected?.price}`;
+      ? t("paywall_cta_start_free", { name: selected.name })
+      : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
 
   return (
     <OnboardShell
@@ -90,7 +91,7 @@ export default function OnboardingPaywallScreen() {
           />
           {!selected?.free ? (
             <Pressable onPress={skip} hitSlop={8} style={{ alignSelf: "center", paddingVertical: 4 }}>
-              <Text style={styles.skip}>Start free — Starter plan</Text>
+              <Text style={styles.skip}>{t("paywall_skip_free")}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -126,31 +127,55 @@ export default function OnboardingPaywallScreen() {
         <Text style={styles.heroSub}>Premium templates, bigger guest lists, HD memories.</Text>
       </View>
 
-      <View style={{ gap: 12, marginTop: 22 }}>
-        {TIERS.map((t) => {
-          const active = tier === t.id;
+      {/* How SHEREHE pricing works */}
+      <View style={styles.howCard}>
+        <Text style={styles.howTitle}>{t("paywall_intro_title")}</Text>
+        <Text style={styles.howBody}>{t("paywall_intro_p1")}</Text>
+        <View style={styles.howRow}>
+          <View style={styles.howIcon}><Users color={C.pinkHi} size={13} /></View>
+          <Text style={styles.howRowText}>{t("paywall_bullet_guests")}</Text>
+        </View>
+        <View style={styles.howRow}>
+          <View style={styles.howIcon}><Sparkles color={C.gold} size={13} /></View>
+          <Text style={styles.howRowText}>{t("paywall_bullet_features")}</Text>
+        </View>
+        <View style={styles.howRow}>
+          <View style={styles.howIcon}><HardDrive color={C.success} size={13} /></View>
+          <Text style={styles.howRowText}>{t("paywall_bullet_storage")}</Text>
+        </View>
+        <View style={styles.howRow}>
+          <View style={styles.howIcon}><TagIcon color={C.text} size={13} /></View>
+          <Text style={styles.howRowText}>{t("paywall_bullet_event")}</Text>
+        </View>
+        <Text style={styles.howFoot}>{t("paywall_storage_note", { days: retentionDays })}</Text>
+      </View>
+
+      <View style={{ gap: 12, marginTop: 18 }}>
+        {TIERS.map((tr) => {
+          const active = tier === tr.id;
+          const per = tr.free ? t("paywall_free_forever") : tr.contact ? t("paywall_custom") : t("paywall_one_time");
           return (
-            <Pressable key={t.id} onPress={() => setTier(t.id)} style={[styles.tier, active ? styles.tierActive : null]}>
-              {t.highlight ? (
+            <Pressable key={tr.id} onPress={() => setTier(tr.id)} style={[styles.tier, active ? styles.tierActive : null]}>
+              {tr.highlight ? (
                 <View style={styles.popular}>
-                  <Text style={styles.popularText}>MOST POPULAR</Text>
+                  <Text style={styles.popularText}>{t("paywall_most_popular")}</Text>
                 </View>
               ) : null}
               <View style={{ flex: 1, gap: 4 }}>
-                <Text style={styles.tierName}>{t.name}</Text>
-                <Text style={styles.tierBlurb}>{t.blurb}</Text>
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                <Text style={styles.tierName}>{tr.name}</Text>
+                <Text style={styles.tierBlurb}>{tr.blurb}</Text>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                   <View style={styles.tag}>
-                    <Text style={styles.tagText}>{t.guests}</Text>
+                    <Text style={styles.tagText}>{tr.guests}</Text>
                   </View>
                   <View style={styles.tag}>
-                    <Text style={styles.tagText}>{t.storage}</Text>
+                    <Text style={styles.tagText}>{tr.storage}</Text>
                   </View>
                 </View>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.tierPrice, t.free ? { color: C.gold } : null]}>{t.price}</Text>
-                <Text style={styles.tierPer}>{t.per}</Text>
+                <Text style={[styles.tierPrice, tr.free ? { color: C.gold } : null]}>{tr.price}</Text>
+                <Text style={styles.tierPer}>{per}</Text>
                 <View style={[styles.radio, active ? styles.radioOn : null]}>
                   {active ? <Check color={C.text} size={14} /> : null}
                 </View>
@@ -261,5 +286,12 @@ const styles = StyleSheet.create({
   perkText: { color: C.text, fontSize: 13, flex: 1, fontWeight: "500" as const },
 
   legal: { color: C.mute, fontSize: 11, textAlign: "center", marginTop: 16, lineHeight: 16, paddingHorizontal: 8 },
+  howCard: { marginTop: 18, padding: 16, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.hair, gap: 8 },
+  howTitle: { color: C.text, fontSize: 14, fontWeight: "800" as const, letterSpacing: -0.2 },
+  howBody: { color: C.subtext, fontSize: 12, lineHeight: 17 },
+  howRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 4 },
+  howIcon: { width: 22, height: 22, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.04)", alignItems: "center", justifyContent: "center", marginTop: 1, borderWidth: 1, borderColor: C.hair },
+  howRowText: { color: C.text, fontSize: 12, lineHeight: 17, flex: 1, fontWeight: "500" as const },
+  howFoot: { color: C.mute, fontSize: 11, lineHeight: 15, marginTop: 6 },
   skip: { color: C.subtext, fontSize: 13, fontWeight: "600" as const, textDecorationLine: "underline" },
 });

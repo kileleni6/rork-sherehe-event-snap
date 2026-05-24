@@ -23,28 +23,30 @@ import { Card, Chip, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { EVENT_TYPES } from "@/constants/templates";
 import { rsvpStats, useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 import type { Event } from "@/types/event";
 
-function countdown(ts: number) {
+function countdown(ts: number, tr: (k: string, vars?: Record<string, string | number>) => string) {
   const diff = ts - Date.now();
-  if (diff < 0) return "Live now";
+  if (diff < 0) return tr("countdown_live");
   const day = 24 * 3600 * 1000;
   const days = Math.floor(diff / day);
   const hours = Math.floor((diff % day) / (3600 * 1000));
-  if (days > 0) return `in ${days}d ${hours}h`;
+  if (days > 0) return tr("countdown_in_days", { d: days, h: hours });
   const mins = Math.floor((diff % (3600 * 1000)) / 60000);
-  return `in ${hours}h ${mins}m`;
+  return tr("countdown_in_hours", { h: hours, m: mins });
 }
 
 function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
   const stats = rsvpStats(event.rsvps);
+  const { t } = useOnboarding();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}>
       <View style={styles.rowImg}>
         <Image source={{ uri: event.cover }} style={styles.rowImgInner} contentFit="cover" />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.rowImgOverlay} />
         <View style={styles.rowImgBadge}>
-          <Text style={styles.rowImgBadgeText}>{countdown(event.date)}</Text>
+          <Text style={styles.rowImgBadgeText}>{countdown(event.date, t)}</Text>
         </View>
       </View>
       <View style={{ flex: 1, gap: 6 }}>
@@ -57,12 +59,12 @@ function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
         <View style={styles.rowMeta}>
           <View style={styles.rowMetaItem}>
             <Users color={C.subtext} size={12} />
-            <Text style={styles.rowMetaText}>{stats.attendingCount} going</Text>
+            <Text style={styles.rowMetaText}>{t("home_going", { n: stats.attendingCount })}</Text>
           </View>
           <View style={styles.rowDot} />
           <View style={styles.rowMetaItem}>
             <CameraIcon color={C.subtext} size={12} />
-            <Text style={styles.rowMetaText}>{event.photos.length} photos</Text>
+            <Text style={styles.rowMetaText}>{t("home_photos", { n: event.photos.length })}</Text>
           </View>
         </View>
       </View>
@@ -76,6 +78,7 @@ const HOW_IT_WORKS_KEY = "sherehe.how_dismissed.v1";
 export default function EventsScreen() {
   const router = useRouter();
   const { upcoming, profile } = useEvents();
+  const { t } = useOnboarding();
   const [showHow, setShowHow] = useState<boolean>(true);
 
   useEffect(() => {
@@ -107,8 +110,8 @@ export default function EventsScreen() {
         >
           <View style={styles.header}>
             <View>
-              <Text style={styles.hello}>Hello, {profile.name}</Text>
-              <Text style={styles.title}>Your celebrations</Text>
+              <Text style={styles.hello}>{t("home_hello", { name: profile.name })}</Text>
+              <Text style={styles.title}>{t("home_title")}</Text>
             </View>
             <Pressable
               onPress={() => router.push("/paywall")}
@@ -123,7 +126,7 @@ export default function EventsScreen() {
               <View style={styles.howHeader}>
                 <View style={styles.howKickerWrap}>
                   <Sparkles color={C.pinkHi} size={13} />
-                  <Text style={styles.howKicker}>HOW SHEREHE WORKS</Text>
+                  <Text style={styles.howKicker}>{t("home_how_kicker")}</Text>
                 </View>
                 <Pressable onPress={dismissHow} hitSlop={8} style={styles.howClose}>
                   <X color={C.subtext} size={14} />
@@ -132,22 +135,22 @@ export default function EventsScreen() {
               <View style={styles.howStep}>
                 <View style={styles.howNum}><Send color={C.pinkHi} size={13} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.howStepTitle}>Create & share</Text>
-                  <Text style={styles.howStepSub}>Design an invite, share a link or QR — guests RSVP without installing.</Text>
+                  <Text style={styles.howStepTitle}>{t("home_how_step1_title")}</Text>
+                  <Text style={styles.howStepSub}>{t("home_how_step1_sub")}</Text>
                 </View>
               </View>
               <View style={styles.howStep}>
                 <View style={styles.howNum}><Ticket color={C.gold} size={13} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.howStepTitle}>Pass at the door</Text>
-                  <Text style={styles.howStepSub}>Each guest gets a personal pass with a QR. Optional check-in for ticketed events.</Text>
+                  <Text style={styles.howStepTitle}>{t("home_how_step2_title")}</Text>
+                  <Text style={styles.howStepSub}>{t("home_how_step2_sub")}</Text>
                 </View>
               </View>
               <View style={styles.howStep}>
                 <View style={styles.howNum}><CameraIcon color={C.success} size={13} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.howStepTitle}>Shoot & reveal</Text>
-                  <Text style={styles.howStepSub}>Guests capture a limited roll of photos. The shared gallery unlocks at your reveal time.</Text>
+                  <Text style={styles.howStepTitle}>{t("home_how_step3_title")}</Text>
+                  <Text style={styles.howStepSub}>{t("home_how_step3_sub")}</Text>
                 </View>
               </View>
             </View>
@@ -164,14 +167,14 @@ export default function EventsScreen() {
                 style={styles.heroOverlay}
               />
               <View style={styles.heroContent}>
-                <Tag label="Next up" tone="pink" />
+                <Tag label={t("home_next_up")} tone="pink" />
                 <Text style={styles.heroTitle}>{hero.name}</Text>
                 <Text style={styles.heroSub}>
-                  {hero.venue} · {countdown(hero.date)}
+                  {hero.venue} · {countdown(hero.date, t)}
                 </Text>
                 <View style={styles.heroActions}>
                   <PrimaryButton
-                    title="Open event"
+                    title={t("home_open_event")}
                     icon={ArrowRight}
                     onPress={() => router.push(`/event/${hero.id}` as never)}
                   />
@@ -193,8 +196,8 @@ export default function EventsScreen() {
               >
                 <Plus color={C.text} size={22} />
               </LinearGradient>
-              <Text style={styles.quickTitle}>Create event</Text>
-              <Text style={styles.quickSub}>Design an invite</Text>
+              <Text style={styles.quickTitle}>{t("home_create_event")}</Text>
+              <Text style={styles.quickSub}>{t("home_create_event_sub")}</Text>
             </Pressable>
             <Pressable
               onPress={() => router.push("/camera" as never)}
@@ -203,13 +206,13 @@ export default function EventsScreen() {
               <View style={[styles.quickIcon, { backgroundColor: C.cardHi }]}>
                 <CameraIcon color={C.gold} size={22} />
               </View>
-              <Text style={styles.quickTitle}>Open camera</Text>
-              <Text style={styles.quickSub}>Capture memories</Text>
+              <Text style={styles.quickTitle}>{t("home_open_camera")}</Text>
+              <Text style={styles.quickSub}>{t("home_open_camera_sub")}</Text>
             </Pressable>
           </View>
 
           <View style={styles.sectionRow}>
-            <SectionTitle>Browse by type</SectionTitle>
+            <SectionTitle>{t("home_browse_types")}</SectionTitle>
           </View>
 
           <ScrollView
@@ -224,17 +227,17 @@ export default function EventsScreen() {
           </ScrollView>
 
           <View style={styles.sectionRow}>
-            <SectionTitle>Upcoming</SectionTitle>
+            <SectionTitle>{t("home_upcoming")}</SectionTitle>
             <Pressable>
-              <Text style={styles.seeAll}>See all</Text>
+              <Text style={styles.seeAll}>{t("home_see_all")}</Text>
             </Pressable>
           </View>
 
           {rest.length === 0 ? (
             <Card style={{ alignItems: "center", gap: 8, paddingVertical: 28 }}>
               <Sparkles color={C.pink} size={26} />
-              <Text style={styles.emptyTitle}>You're all set</Text>
-              <Text style={styles.emptySub}>Create your next celebration in minutes.</Text>
+              <Text style={styles.emptyTitle}>{t("home_empty_title")}</Text>
+              <Text style={styles.emptySub}>{t("home_empty_sub")}</Text>
             </Card>
           ) : (
             <View style={{ gap: 12 }}>
@@ -244,33 +247,35 @@ export default function EventsScreen() {
             </View>
           )}
 
-          <Pressable
-            onPress={() => router.push("/paywall")}
-            style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
-          >
-            <LinearGradient
-              colors={["#1A0410", "#3D0A24", "#8B0030"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={{ flex: 1, gap: 6 }}>
-              <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                <Crown color={C.gold} size={16} />
-                <Text style={styles.proKicker}>SHEREHE PRO</Text>
+          {!profile.premium ? (
+            <Pressable
+              onPress={() => router.push("/paywall")}
+              style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
+            >
+              <LinearGradient
+                colors={["#1A0410", "#3D0A24", "#8B0030"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={{ flex: 1, gap: 6 }}>
+                <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                  <Crown color={C.gold} size={16} />
+                  <Text style={styles.proKicker}>{t("home_pro_kicker")}</Text>
+                </View>
+                <Text style={styles.proTitle}>{t("home_pro_title")}</Text>
+                <Text style={styles.proSub}>{t("home_pro_sub")}</Text>
               </View>
-              <Text style={styles.proTitle}>Unlock luxury templates & HD memories</Text>
-              <Text style={styles.proSub}>Bigger guest lists · custom branding · forever storage</Text>
-            </View>
-            <ChevronRight color={C.text} size={20} />
-          </Pressable>
+              <ChevronRight color={C.text} size={20} />
+            </Pressable>
+          ) : null}
 
           <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
 
       <View style={styles.fab}>
-        <PrimaryButton title="New event" icon={Plus} onPress={() => router.push("/create")} />
+        <PrimaryButton title={t("home_new_event")} icon={Plus} onPress={() => router.push("/create")} />
       </View>
     </View>
   );

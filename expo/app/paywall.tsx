@@ -1,79 +1,101 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import { Check, Crown, Sparkles, X } from "lucide-react-native";
-import React, { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Check, Crown, HardDrive, Mail, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
+import React, { useMemo, useState } from "react";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 
-type TierId = "small" | "medium" | "large";
+type TierId = "starter" | "celebration" | "premium" | "large" | "enterprise" | "super";
 
 interface Tier {
   id: TierId;
   name: string;
   blurb: string;
   price: string;
-  per: string;
+  per: "free" | "one_time" | "custom";
   guests: string;
   storage: string;
   highlight?: boolean;
+  free?: boolean;
+  contact?: boolean;
 }
 
 const TIERS: Tier[] = [
-  {
-    id: "small",
-    name: "Intimate",
-    blurb: "Up to 25 guests",
-    price: "$19",
-    per: "one-time",
-    guests: "25 guests",
-    storage: "5 GB",
-  },
-  {
-    id: "medium",
-    name: "Celebration",
-    blurb: "Up to 100 guests",
-    price: "$49",
-    per: "one-time",
-    guests: "100 guests",
-    storage: "25 GB",
-    highlight: true,
-  },
-  {
-    id: "large",
-    name: "Grand",
-    blurb: "Up to 500 guests",
-    price: "$129",
-    per: "one-time",
-    guests: "500 guests",
-    storage: "Unlimited",
-  },
-];
-
-const PERKS = [
-  "All premium invitation templates",
-  "HD photo downloads & album ZIP",
-  "Custom branding (remove SHEREHE mark)",
-  "Advanced RSVP analytics",
-  "AI invitation writer & best-moments curation",
-  "Priority background uploads",
+  { id: "starter",     name: "Starter",          blurb: "Up to 5 guests",       price: "Free",      per: "free",     guests: "5 guests",       storage: "1 GB",       free: true },
+  { id: "celebration", name: "Celebration",      blurb: "Up to 100 guests",     price: "$24.99",    per: "one_time", guests: "100 guests",     storage: "25 GB",      highlight: true },
+  { id: "premium",     name: "Premium Event",    blurb: "Up to 250 guests",     price: "$89.99",    per: "one_time", guests: "250 guests",     storage: "75 GB" },
+  { id: "large",       name: "Large Event",      blurb: "Up to 500 guests",     price: "$149.99",   per: "one_time", guests: "500 guests",     storage: "150 GB" },
+  { id: "enterprise",  name: "Enterprise Event", blurb: "Up to 1,000 guests",   price: "$299.99",   per: "one_time", guests: "1,000 guests",   storage: "500 GB" },
+  { id: "super",       name: "Super Event",      blurb: "Up to 2,000 guests",   price: "$499.99+",  per: "custom",   guests: "2,000+ guests",  storage: "Unlimited",  contact: true },
 ];
 
 export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { setProfile } = useEvents();
-  const [tier, setTier] = useState<TierId>("medium");
+  const { setProfile, profile, retentionDays } = useEvents();
+  const { t } = useOnboarding();
+  const [tier, setTier] = useState<TierId>("celebration");
+
+  const selected = useMemo(() => TIERS.find((x) => x.id === tier), [tier]);
+
+  // If the host is already on a paid plan, surface that and let them simply close.
+  if (profile.premium) {
+    return (
+      <View style={ps.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <LinearGradient
+          colors={["#1A0410", "#3D0A24", "#8B0030", "#0A0A0B"]}
+          locations={[0, 0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+          <View style={ps.topBar}>
+            <View style={{ width: 38 }} />
+            <View style={ps.crownBadge}>
+              <Crown color={C.gold} size={14} />
+              <Text style={ps.crownText}>SHEREHE PRO</Text>
+            </View>
+            <Pressable onPress={() => router.back()} style={ps.closeBtn} hitSlop={10}>
+              <X color={C.text} size={20} />
+            </Pressable>
+          </View>
+          <View style={ps.alreadyWrap}>
+            <Sparkles color={C.gold} size={36} />
+            <Text style={ps.alreadyTitle}>You're already Pro</Text>
+            <Text style={ps.alreadySub}>
+              All Pro features are unlocked on this account — premium templates, HD downloads, custom branding, RSVP analytics and AI tools.
+            </Text>
+            <PrimaryButton title={t("close")} onPress={() => router.back()} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   const subscribe = async () => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    await setProfile({ premium: true });
+    if (selected?.contact) {
+      Linking.openURL("mailto:hello@sherehe.app?subject=Super%20Event%20enquiry").catch(() => {});
+      return;
+    }
+    await setProfile({ premium: !selected?.free });
     router.back();
   };
+
+  const ctaTitle = selected?.contact
+    ? t("paywall_cta_contact", { name: selected.name })
+    : selected?.free
+      ? t("paywall_cta_start_free", { name: selected.name })
+      : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
+
+  const perLabel = (per: Tier["per"]) =>
+    per === "free" ? t("paywall_free_forever") : per === "custom" ? t("paywall_custom") : t("paywall_one_time");
 
   return (
     <View style={ps.container}>
@@ -96,40 +118,71 @@ export default function PaywallScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
           <View style={ps.hero}>
             <Sparkles color={C.gold} size={30} />
-            <Text style={ps.heroTitle}>Host like a star</Text>
-            <Text style={ps.heroSub}>
-              Unlock luxury templates, bigger guest lists, custom branding and HD memories — one payment per event.
-            </Text>
+            <Text style={ps.heroTitle}>{t("paywall_hero_title")}</Text>
+            <Text style={ps.heroSub}>{t("paywall_hero_sub")}</Text>
           </View>
 
-          <View style={{ gap: 12, marginTop: 22 }}>
-            {TIERS.map((t) => {
-              const active = tier === t.id;
+          {/* How pricing works */}
+          <View style={ps.howCard}>
+            <Text style={ps.howTitle}>{t("paywall_intro_title")}</Text>
+            <Text style={ps.howBody}>{t("paywall_intro_p1")}</Text>
+            <Text style={ps.howBody}>{t("paywall_intro_p2")}</Text>
+
+            <View style={ps.howRow}>
+              <View style={ps.howIcon}><Users color={C.pinkHi} size={14} /></View>
+              <Text style={ps.howRowText}>{t("paywall_bullet_guests")}</Text>
+            </View>
+            <View style={ps.howRow}>
+              <View style={ps.howIcon}><Sparkles color={C.gold} size={14} /></View>
+              <Text style={ps.howRowText}>{t("paywall_bullet_features")}</Text>
+            </View>
+            <View style={ps.howRow}>
+              <View style={ps.howIcon}><HardDrive color={C.success} size={14} /></View>
+              <Text style={ps.howRowText}>{t("paywall_bullet_storage")}</Text>
+            </View>
+            <View style={ps.howRow}>
+              <View style={ps.howIcon}><TagIcon color={C.text} size={14} /></View>
+              <Text style={ps.howRowText}>{t("paywall_bullet_event")}</Text>
+            </View>
+
+            <View style={ps.retentionBadge}>
+              <HardDrive color={C.subtext} size={12} />
+              <Text style={ps.retentionText}>
+                {t("paywall_storage_note", { days: retentionDays })}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={ps.sectionLabel}>{t("paywall_select_tier")}</Text>
+
+          <View style={{ gap: 12 }}>
+            {TIERS.map((tr) => {
+              const active = tier === tr.id;
               return (
                 <Pressable
-                  key={t.id}
-                  onPress={() => setTier(t.id)}
+                  key={tr.id}
+                  onPress={() => setTier(tr.id)}
                   style={[ps.tier, active ? ps.tierActive : null]}
                 >
-                  {t.highlight ? (
+                  {tr.highlight ? (
                     <View style={ps.popular}>
-                      <Text style={ps.popularText}>MOST POPULAR</Text>
+                      <Text style={ps.popularText}>{t("paywall_most_popular")}</Text>
                     </View>
                   ) : null}
                   <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={ps.tierName}>{t.name}</Text>
-                    <Text style={ps.tierBlurb}>{t.blurb}</Text>
-                    <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-                      <View style={ps.tierTag}><Text style={ps.tierTagText}>{t.guests}</Text></View>
-                      <View style={ps.tierTag}><Text style={ps.tierTagText}>{t.storage}</Text></View>
+                    <Text style={ps.tierName}>{tr.name}</Text>
+                    <Text style={ps.tierBlurb}>{tr.blurb}</Text>
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                      <View style={ps.tierTag}><Text style={ps.tierTagText}>{tr.guests}</Text></View>
+                      <View style={ps.tierTag}><Text style={ps.tierTagText}>{tr.storage}</Text></View>
                     </View>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={ps.tierPrice}>{t.price}</Text>
-                    <Text style={ps.tierPer}>{t.per}</Text>
+                    <Text style={[ps.tierPrice, tr.free ? { color: C.gold } : null]}>{tr.price}</Text>
+                    <Text style={ps.tierPer}>{perLabel(tr.per)}</Text>
                     <View style={[ps.radio, active ? ps.radioOn : null]}>
                       {active ? <Check color={C.text} size={14} /> : null}
                     </View>
@@ -140,7 +193,14 @@ export default function PaywallScreen() {
           </View>
 
           <View style={ps.perks}>
-            {PERKS.map((p) => (
+            {[
+              t("paywall_perk_templates"),
+              t("paywall_perk_hd"),
+              t("paywall_perk_brand"),
+              t("paywall_perk_analytics"),
+              t("paywall_perk_ai"),
+              t("paywall_perk_priority"),
+            ].map((p) => (
               <View key={p} style={ps.perkRow}>
                 <View style={ps.perkCheck}>
                   <Check color={C.bg} size={12} />
@@ -150,13 +210,13 @@ export default function PaywallScreen() {
             ))}
           </View>
 
-          <Text style={ps.legal}>One-time per event. Pay with Apple Pay, Google Pay or card via Stripe.</Text>
+          <Text style={ps.legal}>{t("paywall_legal")}</Text>
         </ScrollView>
 
         <View style={[ps.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
-          <PrimaryButton title={`Unlock ${TIERS.find((t) => t.id === tier)?.name} · ${TIERS.find((t) => t.id === tier)?.price}`} onPress={subscribe} />
+          <PrimaryButton title={ctaTitle} icon={selected?.contact ? Mail : Crown} onPress={subscribe} />
           <Pressable onPress={() => router.back()} style={{ alignSelf: "center", marginTop: 10 }}>
-            <Text style={ps.maybe}>Maybe later</Text>
+            <Text style={ps.maybe}>{t("paywall_maybe_later")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -189,9 +249,40 @@ const ps = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  hero: { alignItems: "center", gap: 10, marginTop: 24 },
-  heroTitle: { color: C.text, fontSize: 36, fontWeight: "800" as const, letterSpacing: -0.7, textAlign: "center" },
+  hero: { alignItems: "center", gap: 10, marginTop: 8 },
+  heroTitle: { color: C.text, fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.7, textAlign: "center" },
   heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 14, textAlign: "center", lineHeight: 20, paddingHorizontal: 14 },
+
+  howCard: {
+    marginTop: 22,
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 10,
+  },
+  howTitle: { color: C.text, fontSize: 16, fontWeight: "800" as const, letterSpacing: -0.2 },
+  howBody: { color: "rgba(255,255,255,0.78)", fontSize: 13, lineHeight: 19 },
+  howRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 4 },
+  howIcon: {
+    width: 24, height: 24, borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center", justifyContent: "center",
+    marginTop: 1,
+  },
+  howRowText: { color: C.text, fontSize: 13, lineHeight: 18, flex: 1, fontWeight: "500" as const },
+  retentionBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8, marginTop: 6,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  retentionText: { color: C.subtext, fontSize: 11, lineHeight: 15, flex: 1 },
+
+  sectionLabel: { color: C.text, fontSize: 13, fontWeight: "800" as const, letterSpacing: 1.5, marginTop: 22, marginBottom: 10 },
+
   tier: {
     flexDirection: "row",
     alignItems: "center",
@@ -213,7 +304,7 @@ const ps = StyleSheet.create({
     borderRadius: 999,
   },
   popularText: { color: "#0A0A0B", fontSize: 10, fontWeight: "800" as const, letterSpacing: 1 },
-  tierName: { color: C.text, fontSize: 19, fontWeight: "800" as const, letterSpacing: -0.3 },
+  tierName: { color: C.text, fontSize: 18, fontWeight: "800" as const, letterSpacing: -0.3 },
   tierBlurb: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
   tierTag: {
     paddingHorizontal: 10,
@@ -224,7 +315,7 @@ const ps = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   tierTagText: { color: C.text, fontSize: 11, fontWeight: "600" as const },
-  tierPrice: { color: C.text, fontSize: 22, fontWeight: "800" as const },
+  tierPrice: { color: C.text, fontSize: 20, fontWeight: "800" as const },
   tierPer: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: -2 },
   radio: {
     width: 22,
@@ -253,4 +344,8 @@ const ps = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.08)",
   },
   maybe: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" as const },
+
+  alreadyWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 12 },
+  alreadyTitle: { color: C.text, fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.4, textAlign: "center" },
+  alreadySub: { color: "rgba(255,255,255,0.8)", fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 12 },
 });
