@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Ban,
   CheckCircle2,
   ChevronLeft,
   Clock,
@@ -19,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Alert,
   Animated,
+  TextInput,
   Easing,
   Platform,
   Pressable,
@@ -46,7 +48,7 @@ export default function CheckInScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { findById, checkInGuest } = useEvents();
+  const { findById, checkInGuest, rejectGuest } = useEvents();
   const { t, formatTime } = useOnboarding();
   const event = findById(id);
 
@@ -58,6 +60,8 @@ export default function CheckInScreen() {
   const [facing, setFacing] = useState<"back" | "front">("back");
   const [permission, requestPermission] = useCameraPermissions();
   const [scanCooldown, setScanCooldown] = useState<boolean>(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionNote, setRejectionNote] = useState<string>("");
   const lastScanRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -85,8 +89,10 @@ export default function CheckInScreen() {
   }
 
   const attending = event.rsvps.filter((r) => r.status !== "no");
-  const arrived = attending.filter((r) => typeof r.checkedInAt === "number");
-  const pending = attending.filter((r) => typeof r.checkedInAt !== "number");
+  const rejected = attending.filter((r) => typeof r.rejectionReason === "string");
+  const active = attending.filter((r) => typeof r.rejectionReason !== "string");
+  const arrived = active.filter((r) => typeof r.checkedInAt === "number");
+  const pending = active.filter((r) => typeof r.checkedInAt !== "number");
   const expectedCount = attending.reduce((sum, r) => sum + 1 + (r.guests ?? 0), 0);
 
   const filteredPending = useMemo(() => {
@@ -108,6 +114,18 @@ export default function CheckInScreen() {
     },
     [checkInGuest, event.id]
   );
+
+  const reject = async (rsvpId: string) => {
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    await rejectGuest(event.id, rsvpId, rejectionNote.trim() || null);
+    setRejectionNote("");
+    setRejectingId(null);
+  };
+
+  const undoReject = async (rsvpId: string) => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    await rejectGuest(event.id, rsvpId, null);
+  };
 
   const undo = async (rsvpId: string) => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
@@ -384,11 +402,43 @@ export default function CheckInScreen() {
                       </Text>
                     ) : null}
                   </View>
+                  {rejectingId === r.id ? (
+                    <View style={s.rejectInline}>
+                      <TextInput
+                        placeholder={t("checkin_reject_reason_placeholder")}
+                        placeholderTextColor={C.mute}
+                        value={rejectionNote}
+                        onChangeText={setRejectionNote}
+                        style={s.rejectInput}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={() => reject(r.id)}
+                      />
+                      <View style={s.rejectActions}>
+                        <Pressable onPress={() => { setRejectingId(null); setRejectionNote(""); }} style={s.rejectCancelBtn}>
+                          <X color={C.subtext} size={14} />
+                        </Pressable>
+                        <Pressable onPress={() => reject(r.id)} style={s.rejectConfirmBtn}>
+                          <Ban color={C.text} size={14} />
+                          <Text style={s.rejectConfirmText}>{t("checkin_reject_btn")}</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
-                <Pressable onPress={() => checkIn(r.id, r.name)} style={s.checkBtn}>
-                  <CheckCircle2 color={C.text} size={16} />
-                  <Text style={s.checkBtnText}>{t("checkin_scan_cta")}</Text>
-                </Pressable>
+                <View style={{ gap: 6 }}>
+                  <Pressable onPress={() => checkIn(r.id, r.name)} style={s.checkBtn}>
+                    <CheckCircle2 color={C.text} size={16} />
+                    <Text style={s.checkBtnText}>{t("checkin_scan_cta")}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { setRejectingId(r.id); setRejectionNote(""); }}
+                    style={s.rejectBtn}
+                    hitSlop={6}
+                  >
+                    <Ban color={C.subtext} size={14} />
+                  </Pressable>
+                </View>
               </View>
             ))}
             {filteredPending.length === 0 ? (
@@ -430,6 +480,30 @@ export default function CheckInScreen() {
                       </Pressable>
                     </View>
                   ))}
+              </View>
+            </>
+          ) : null}
+
+          {rejected.length > 0 ? (
+            <>
+              <SectionTitle style={{ marginTop: 24 }}>{t("checkin_rejected_title")}</SectionTitle>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {rejected.map((r) => (
+                  <View key={r.id} style={[s.guestRow, { borderColor: "rgba(255,69,58,0.25)" }]}>
+                    <View style={[s.avatar, { backgroundColor: "rgba(255,69,58,0.15)" }]}>
+                      <Ban color={C.danger} size={15} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.guestName}>{r.name}</Text>
+                      <Text style={s.guestExtra}>
+                        {r.rejectionReason && r.rejectionReason !== "(no reason)" ? r.rejectionReason : t("checkin_rejected_no_reason")}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => undoReject(r.id)} hitSlop={6} style={s.undoBtn}>
+                      <Undo2 color={C.subtext} size={14} />
+                    </Pressable>
+                  </View>
+                ))}
               </View>
             </>
           ) : null}
@@ -606,6 +680,30 @@ const s = StyleSheet.create({
     borderRadius: 999, backgroundColor: C.pink,
   },
   checkBtnText: { color: C.text, fontSize: 12, fontWeight: "800" as const },
+  rejectBtn: {
+    width: 32, height: 32, borderRadius: 999,
+    backgroundColor: "rgba(255,69,58,0.15)",
+    borderWidth: 1, borderColor: "rgba(255,69,58,0.25)",
+    alignItems: "center", justifyContent: "center",
+  },
+  rejectInline: { marginTop: 8, gap: 8 },
+  rejectInput: {
+    backgroundColor: C.cardHi, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 8,
+    color: C.text, fontSize: 13,
+    borderWidth: 1, borderColor: "rgba(255,69,58,0.3)",
+  },
+  rejectActions: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
+  rejectCancelBtn: {
+    width: 32, height: 32, borderRadius: 999,
+    backgroundColor: C.cardHi, alignItems: "center", justifyContent: "center",
+  },
+  rejectConfirmBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: C.danger,
+  },
+  rejectConfirmText: { color: C.text, fontWeight: "800" as const, fontSize: 12 },
   undoBtn: {
     width: 32, height: 32, borderRadius: 999,
     backgroundColor: C.cardHi,

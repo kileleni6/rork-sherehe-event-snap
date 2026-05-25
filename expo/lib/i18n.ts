@@ -341,6 +341,14 @@ const en: Dict = {
   checkin_done: "Done",
   checkin_plus_guests_one: "+{n} guest",
   checkin_plus_guests_many: "+{n} guests",
+  checkin_reject_btn: "Reject",
+  checkin_reject_reason_placeholder: "Reason (optional)…",
+  checkin_rejected_title: "Rejected",
+  checkin_rejected_no_reason: "No reason given",
+
+  // invite pass hint
+  invite_pass_hint: "After you RSVP, you'll get a personal pass with a QR code to show at the door.",
+  invite_pass_hint_kicker: "YOUR PASS",
 
   // errors
   err_generic_title: "Something went wrong",
@@ -358,6 +366,9 @@ const es: Dict = {
   welcome_tag: "Crea invitaciones, recibe confirmaciones y captura recuerdos juntos.",
   welcome_fineprint: "Solo anfitriones. Los invitados se unen por enlace — sin registro.",
   get_started: "Comenzar",
+  // invite hint
+  invite_pass_hint: "Después de confirmar, obtendrás un pase personal con un código QR para mostrar en la puerta.",
+  invite_pass_hint_kicker: "PASE PERSONAL",
   continue_guest: "Continuar como invitado",
   choose_language: "Elige tu idioma",
   language_sub: "Traduciremos la app y tus invitaciones.",

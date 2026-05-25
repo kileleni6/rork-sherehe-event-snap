@@ -16,6 +16,8 @@ export interface Rsvp {
   checkedInAt?: number;
   /** number of shots the guest has used */
   shotsUsed?: number;
+  /** reason set by the host when rejecting a guest at the door */
+  rejectionReason?: string;
 }
 
 export interface Photo {

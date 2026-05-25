@@ -301,6 +301,27 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     [updateEvent]
   );
 
+  /** Reject a guest at the door with an optional reason. Pass `null` to undo. */
+  const rejectGuest = useCallback(
+    async (eventId: string, rsvpId: string, reason: string | null = "") => {
+      const next = events.map((e) =>
+        e.id === eventId
+          ? {
+              ...e,
+              rsvps: e.rsvps.map((r) =>
+                r.id === rsvpId
+                  ? { ...r, rejectionReason: reason === null ? undefined : (reason || "(no reason)") }
+                  : r
+              ),
+            }
+          : e
+      );
+      await persist(next);
+      qc.setQueryData(["events"], next);
+    },
+    [events, persist, qc]
+  );
+
   const setProfile = useCallback(
     async (p: Partial<Profile>) => {
       const next = { ...profile, ...p };
@@ -332,6 +353,7 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     deleteEvent,
     addRsvp,
     checkInGuest,
+    rejectGuest,
     addPhoto,
     removePhoto,
     reconcileRetention,

@@ -181,6 +181,11 @@ export default function InviteScreen() {
           <SectionTitle style={{ marginTop: 28 }}>RSVP preview</SectionTitle>
           <Text style={s.muteSub}>This is exactly what your guests see.</Text>
 
+          <View style={s.passHintBanner}>
+            <Ticket color={C.gold} size={16} />
+            <Text style={s.passHintText}>After you RSVP, you'll get a personal pass with a QR code to show at the door.</Text>
+          </View>
+
           {submitted ? (
             <Card style={{ alignItems: "center", padding: 24, gap: 10, marginTop: 14 }}>
               <View style={s.successCircle}>
@@ -340,6 +345,14 @@ const s = StyleSheet.create({
   },
   howNumText: { color: C.pinkHi, fontSize: 11, fontWeight: "800" as const },
   howText: { color: C.text, fontSize: 13, lineHeight: 18, flex: 1 },
+  passHintBanner: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    padding: 14, borderRadius: 16,
+    backgroundColor: "rgba(244,201,123,0.1)",
+    borderWidth: 1, borderColor: "rgba(244,201,123,0.25)",
+    marginTop: 16,
+  },
+  passHintText: { color: C.text, fontSize: 12, lineHeight: 18, flex: 1, fontWeight: "500" as const },
   calRow: {
     marginTop: 14, flexDirection: "row", alignItems: "center", gap: 12,
     padding: 14, borderRadius: 18,
