@@ -1,9 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import { Check, Crown, HardDrive, Mail, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
+import { Check, Crown, HardDrive, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/ui";
@@ -18,21 +18,24 @@ interface Tier {
   name: string;
   blurb: string;
   price: string;
-  per: "free" | "one_time" | "custom";
+  per: "free" | "one_time";
   guests: string;
   storage: string;
+  /** RevenueCat package lookup_key (offering "default") */
+  rcPackage?: "celebration" | "premium" | "large" | "enterprise" | "super";
+  /** RevenueCat product store identifier */
+  rcProductId?: string;
   highlight?: boolean;
   free?: boolean;
-  contact?: boolean;
 }
 
 const TIERS: Tier[] = [
   { id: "starter",     name: "Starter",          blurb: "Up to 5 guests",       price: "Free",      per: "free",     guests: "5 guests",       storage: "1 GB",       free: true },
-  { id: "celebration", name: "Celebration",      blurb: "Up to 100 guests",     price: "$24.99",    per: "one_time", guests: "100 guests",     storage: "25 GB",      highlight: true },
-  { id: "premium",     name: "Premium Event",    blurb: "Up to 250 guests",     price: "$89.99",    per: "one_time", guests: "250 guests",     storage: "75 GB" },
-  { id: "large",       name: "Large Event",      blurb: "Up to 500 guests",     price: "$149.99",   per: "one_time", guests: "500 guests",     storage: "150 GB" },
-  { id: "enterprise",  name: "Enterprise Event", blurb: "Up to 1,000 guests",   price: "$299.99",   per: "one_time", guests: "1,000 guests",   storage: "500 GB" },
-  { id: "super",       name: "Super Event",      blurb: "Up to 2,000 guests",   price: "$499.99+",  per: "custom",   guests: "2,000+ guests",  storage: "Unlimited",  contact: true },
+  { id: "celebration", name: "Celebration",      blurb: "Up to 100 guests",     price: "$24.99",    per: "one_time", guests: "100 guests",     storage: "25 GB",      highlight: true, rcPackage: "celebration", rcProductId: "sherehe_celebration" },
+  { id: "premium",     name: "Premium Event",    blurb: "Up to 250 guests",     price: "$89.99",    per: "one_time", guests: "250 guests",     storage: "75 GB",                       rcPackage: "premium",     rcProductId: "sherehe_premium" },
+  { id: "large",       name: "Large Event",      blurb: "Up to 500 guests",     price: "$149.99",   per: "one_time", guests: "500 guests",     storage: "150 GB",                      rcPackage: "large",       rcProductId: "sherehe_large" },
+  { id: "enterprise",  name: "Enterprise Event", blurb: "Up to 1,000 guests",   price: "$299.99",   per: "one_time", guests: "1,000 guests",   storage: "500 GB",                      rcPackage: "enterprise",  rcProductId: "sherehe_enterprise" },
+  { id: "super",       name: "Super Event",      blurb: "Up to 2,000 guests",   price: "$499.99",   per: "one_time", guests: "2,000 guests",   storage: "Unlimited",                   rcPackage: "super",       rcProductId: "sherehe_super" },
 ];
 
 export default function PaywallScreen() {
@@ -80,22 +83,22 @@ export default function PaywallScreen() {
 
   const subscribe = async () => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    if (selected?.contact) {
-      Linking.openURL("mailto:hello@sherehe.app?subject=Super%20Event%20enquiry").catch(() => {});
-      return;
+    // RevenueCat purchase flow: in a dev/native build we'd call
+    // Purchases.purchasePackage(offering.availablePackages.find(p => p.identifier === selected.rcPackage))
+    // For Expo Go we unlock locally using the same entitlement ("pro") for testing.
+    if (selected?.rcProductId) {
+      console.log("[paywall] purchase", selected.rcProductId, selected.rcPackage);
     }
     await setProfile({ premium: !selected?.free });
     router.back();
   };
 
-  const ctaTitle = selected?.contact
-    ? t("paywall_cta_contact", { name: selected.name })
-    : selected?.free
-      ? t("paywall_cta_start_free", { name: selected.name })
-      : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
+  const ctaTitle = selected?.free
+    ? t("paywall_cta_start_free", { name: selected.name })
+    : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
 
   const perLabel = (per: Tier["per"]) =>
-    per === "free" ? t("paywall_free_forever") : per === "custom" ? t("paywall_custom") : t("paywall_one_time");
+    per === "free" ? t("paywall_free_forever") : t("paywall_one_time");
 
   return (
     <View style={ps.container}>
@@ -214,7 +217,7 @@ export default function PaywallScreen() {
         </ScrollView>
 
         <View style={[ps.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
-          <PrimaryButton title={ctaTitle} icon={selected?.contact ? Mail : Crown} onPress={subscribe} />
+          <PrimaryButton title={ctaTitle} icon={Crown} onPress={subscribe} />
           <Pressable onPress={() => router.back()} style={{ alignSelf: "center", marginTop: 10 }}>
             <Text style={ps.maybe}>{t("paywall_maybe_later")}</Text>
           </Pressable>
