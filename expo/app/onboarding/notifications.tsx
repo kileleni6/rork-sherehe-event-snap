@@ -8,6 +8,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import { OnboardShell } from "@/components/OnboardShell";
 import { GhostButton, PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { registerForPushAsync } from "@/lib/notifications";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function NotificationsScreen() {
@@ -15,12 +16,18 @@ export default function NotificationsScreen() {
   const { update, t } = useOnboarding();
 
   const enable = async () => {
+    const reg = await registerForPushAsync();
     if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(
+        reg.granted ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning,
+      ).catch(() => {});
     }
-    await update({ notificationsEnabled: true });
+    await update({ notificationsEnabled: reg.granted });
     if (Platform.OS === "web") {
-      Alert.alert("Enabled", "Notifications would be requested on a device.");
+      Alert.alert(t("notif_enabled_title"), t("notif_enabled_body"));
+    }
+    if (reg.token) {
+      console.log("[notifications] expo push token", reg.token);
     }
     router.push("/onboarding/photos" as never);
   };

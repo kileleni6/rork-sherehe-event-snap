@@ -15,14 +15,31 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.sherehe"
+      "bundleIdentifier": "app.rork.sherehe",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "SHEREHE uses the camera so hosts can scan guest QR passes at the door and guests can capture event photos.",
+        "NSPhotoLibraryUsageDescription": "SHEREHE needs photo library access so you can pick a cover image for your event invitation.",
+        "NSPhotoLibraryAddUsageDescription": "SHEREHE saves event photos and shared gallery downloads to your library.",
+        "NSUserNotificationsUsageDescription": "SHEREHE sends RSVP reminders, event countdowns and gallery-unlock alerts."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.ksumdxxeaoluibrtffh9i"
+      "package": "app.rork.ksumdxxeaoluibrtffh9i",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -41,6 +58,19 @@
         "expo-camera",
         {
           "cameraPermission": "SHEREHE uses the camera so hosts can scan guest QR passes at the door and guests can capture event photos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SHEREHE needs photo library access so you can pick a cover image for your event invitation."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#FFD166"
         }
       ]
     ],

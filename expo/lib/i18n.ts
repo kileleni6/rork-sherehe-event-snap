@@ -1656,6 +1656,193 @@ const nl: Dict = {
   checkin_scan_cta: "Inchecken",
 };
 
+// ---- Comprehensive patches for under-translated languages ----
+// Brings pt/hi/zh/de/it/ja/ru/ko/tr/id/nl up to parity with es/fr/sw/ar on the
+// most user-visible screens: paywall, profile, gallery, pass, check-in,
+// notifications, errors. Anything still missing falls back to English.
+
+Object.assign(pt, {
+  continue_guest: "Continuar como convidado", language_sub: "Traduziremos o app e seus convites.",
+  role_sub: "Personalizaremos a experiência.", role_guest: "Convidado",
+  role_host_sub: "Organize seu próprio evento.", role_guest_sub: "Entre em um evento para o qual foi convidado.",
+  signin_sub: "Sincronize seus eventos.", cont_phone: "Continuar com telefone", cont_email: "Continuar com e-mail",
+  retry: "Tentar novamente", loading: "Carregando…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "Templates premium, listas maiores, memórias em HD.",
+  paywall_select_tier: "Escolha o tamanho do evento", paywall_cta_start_free: "Começar grátis · {name}",
+  paywall_cta_contact: "Falar com vendas · {name}", paywall_maybe_later: "Talvez depois",
+  paywall_restore: "Restaurar compras", paywall_processing: "Processando…",
+  profile_pro: "✦ Membro Pro", profile_help: "Ajuda e suporte",
+  pass_title: "Seu passe", pass_show_at_door: "Mostre este passe na porta",
+  pass_checked_in: "Check-in feito", pass_open_camera: "Abrir câmera", pass_add_calendar: "Adicionar ao calendário",
+  pass_photos_left: "Fotos restantes", pass_rsvp_going: "Vou", pass_rsvp_maybe: "Talvez", pass_rsvp_no: "Não posso",
+  gallery_title: "Galerias", gallery_open: "Abrir", gallery_locked: "Bloqueada",
+  gallery_sealed_kicker: "ENVELOPE LACRADO", gallery_reveal_coming: "A revelação vem aí",
+  gallery_unlock_now: "Desbloquear agora", gallery_empty: "Nenhuma foto ainda.",
+  checkin_kicker: "CHECK-IN", checkin_scan_title: "Escanear passe", checkin_scan_cta: "Fazer check-in",
+  checkin_aim_hint: "Aponte para o QR", checkin_no_matches: "Sem resultados", checkin_arrivals: "Chegadas",
+  err_generic_title: "Algo deu errado", err_generic_body: "Tente novamente em instantes.",
+  err_network: "Sem conexão. Verifique sua rede e tente de novo.",
+});
+
+Object.assign(hi, {
+  continue_guest: "अतिथि के रूप में जारी रखें", language_sub: "हम ऐप और आपके निमंत्रण का अनुवाद करेंगे।",
+  role_guest: "अतिथि", retry: "पुनः प्रयास", loading: "लोड हो रहा है…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "प्रीमियम टेम्प्लेट, बड़ी अतिथि सूची, HD यादें।",
+  paywall_select_tier: "अपने इवेंट का आकार चुनें", paywall_cta_start_free: "मुफ़्त शुरू करें · {name}",
+  paywall_maybe_later: "बाद में", paywall_restore: "खरीदारी पुनर्स्थापित करें",
+  profile_pro: "✦ Pro सदस्य", profile_help: "सहायता",
+  pass_title: "आपका पास", pass_show_at_door: "दरवाज़े पर यह पास दिखाएँ", pass_checked_in: "चेक-इन हो गया",
+  pass_open_camera: "कैमरा खोलें", pass_add_calendar: "कैलेंडर में जोड़ें", pass_photos_left: "बची हुई तस्वीरें",
+  pass_rsvp_going: "आऊँगा", pass_rsvp_maybe: "शायद", pass_rsvp_no: "नहीं आ सकता",
+  gallery_title: "गैलरी", gallery_open: "खोलें", gallery_locked: "बंद",
+  gallery_sealed_kicker: "बंद लिफ़ाफ़ा", gallery_reveal_coming: "रहस्योद्घाटन आ रहा है",
+  gallery_unlock_now: "अभी अनलॉक करें", gallery_empty: "अभी तक कोई तस्वीर नहीं।",
+  checkin_kicker: "चेक-इन", checkin_scan_title: "पास स्कैन करें", checkin_scan_cta: "चेक-इन",
+  checkin_aim_hint: "QR पर निशाना लगाएँ", checkin_arrivals: "आगमन",
+  err_generic_title: "कुछ गलत हुआ", err_generic_body: "कृपया कुछ देर बाद पुनः प्रयास करें।",
+  err_network: "नेटवर्क उपलब्ध नहीं। कनेक्शन जाँचें।",
+});
+
+Object.assign(zh, {
+  continue_guest: "以访客身份继续", language_sub: "我们将翻译应用与您的邀请。",
+  role_guest: "访客", retry: "重试", loading: "加载中…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "高级模板、更大宾客名单、高清回忆。",
+  paywall_select_tier: "选择您的活动规模", paywall_cta_start_free: "免费开始 · {name}",
+  paywall_maybe_later: "稍后", paywall_restore: "恢复购买", paywall_processing: "处理中…",
+  profile_pro: "✦ Pro 会员", profile_help: "帮助与支持",
+  pass_title: "您的通行证", pass_show_at_door: "在门口出示此通行证", pass_checked_in: "已签到",
+  pass_open_camera: "打开相机", pass_add_calendar: "添加到日历", pass_photos_left: "剩余照片",
+  pass_rsvp_going: "参加", pass_rsvp_maybe: "也许", pass_rsvp_no: "无法参加",
+  gallery_title: "图库", gallery_open: "打开", gallery_locked: "已锁定",
+  gallery_sealed_kicker: "密封信封", gallery_reveal_coming: "揭晓即将到来",
+  gallery_unlock_now: "立即解锁", gallery_empty: "暂无照片。",
+  checkin_kicker: "签到", checkin_scan_title: "扫描通行证", checkin_scan_cta: "签到",
+  checkin_aim_hint: "对准二维码", checkin_arrivals: "到场记录",
+  err_generic_title: "出现问题", err_generic_body: "请稍后再试。",
+  err_network: "无网络连接，请检查网络。",
+});
+
+Object.assign(de, {
+  continue_guest: "Als Gast fortfahren", language_sub: "Wir übersetzen App und Einladungen.",
+  role_guest: "Gast", retry: "Erneut versuchen", loading: "Lädt…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "Premium-Vorlagen, größere Gästelisten, HD-Erinnerungen.",
+  paywall_select_tier: "Wähle deine Eventgröße", paywall_cta_start_free: "Kostenlos starten · {name}",
+  paywall_maybe_later: "Vielleicht später", paywall_restore: "Käufe wiederherstellen", paywall_processing: "Wird verarbeitet…",
+  profile_pro: "✦ Pro-Mitglied", profile_help: "Hilfe & Support",
+  pass_title: "Dein Pass", pass_show_at_door: "Zeige diesen Pass an der Tür", pass_checked_in: "Eingecheckt",
+  pass_open_camera: "Kamera öffnen", pass_add_calendar: "Zum Kalender hinzufügen", pass_photos_left: "Verbleibende Fotos",
+  pass_rsvp_going: "Komme", pass_rsvp_maybe: "Vielleicht", pass_rsvp_no: "Kann nicht",
+  gallery_title: "Galerien", gallery_open: "Öffnen", gallery_locked: "Gesperrt",
+  gallery_sealed_kicker: "VERSIEGELTER UMSCHLAG", gallery_reveal_coming: "Die Enthüllung kommt",
+  gallery_unlock_now: "Jetzt entsperren", gallery_empty: "Noch keine Fotos.",
+  checkin_kicker: "CHECK-IN", checkin_scan_title: "Pass scannen", checkin_scan_cta: "Einchecken",
+  checkin_aim_hint: "Auf den QR-Code richten", checkin_arrivals: "Ankünfte",
+  err_generic_title: "Etwas ist schiefgelaufen", err_generic_body: "Bitte versuche es gleich erneut.",
+  err_network: "Keine Verbindung. Prüfe dein Netz.",
+});
+
+Object.assign(it, {
+  continue_guest: "Continua come ospite", language_sub: "Tradurremo app e inviti.",
+  role_guest: "Ospite", retry: "Riprova", loading: "Caricamento…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "Template premium, liste più grandi, ricordi in HD.",
+  paywall_select_tier: "Scegli la dimensione dell'evento", paywall_cta_start_free: "Inizia gratis · {name}",
+  paywall_maybe_later: "Forse più tardi", paywall_restore: "Ripristina acquisti", paywall_processing: "Elaborazione…",
+  profile_pro: "✦ Membro Pro", profile_help: "Aiuto e supporto",
+  pass_title: "Il tuo pass", pass_show_at_door: "Mostra questo pass all'ingresso", pass_checked_in: "Check-in effettuato",
+  pass_open_camera: "Apri fotocamera", pass_add_calendar: "Aggiungi al calendario", pass_photos_left: "Foto rimaste",
+  pass_rsvp_going: "Vengo", pass_rsvp_maybe: "Forse", pass_rsvp_no: "Non posso",
+  gallery_title: "Gallerie", gallery_open: "Apri", gallery_locked: "Bloccata",
+  gallery_sealed_kicker: "BUSTA SIGILLATA", gallery_reveal_coming: "La rivelazione arriva",
+  gallery_unlock_now: "Sblocca ora", gallery_empty: "Ancora nessuna foto.",
+  checkin_kicker: "CHECK-IN", checkin_scan_title: "Scansiona pass", checkin_scan_cta: "Check-in",
+  checkin_aim_hint: "Inquadra il QR", checkin_arrivals: "Arrivi",
+  err_generic_title: "Qualcosa è andato storto", err_generic_body: "Riprova tra poco.",
+  err_network: "Rete non disponibile. Controlla la connessione.",
+});
+
+Object.assign(ja, {
+  continue_guest: "ゲストとして続ける", language_sub: "アプリと招待状を翻訳します。",
+  role_guest: "ゲスト", retry: "再試行", loading: "読み込み中…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "プレミアムテンプレ、大規模ゲストリスト、HD の思い出。",
+  paywall_select_tier: "イベントの規模を選択", paywall_cta_start_free: "無料で始める · {name}",
+  paywall_maybe_later: "後で", paywall_restore: "購入を復元", paywall_processing: "処理中…",
+  profile_pro: "✦ Pro メンバー", profile_help: "ヘルプとサポート",
+  pass_title: "あなたのパス", pass_show_at_door: "入口でこのパスを提示", pass_checked_in: "チェックイン済み",
+  pass_open_camera: "カメラを開く", pass_add_calendar: "カレンダーに追加", pass_photos_left: "残り写真",
+  pass_rsvp_going: "行きます", pass_rsvp_maybe: "たぶん", pass_rsvp_no: "行けません",
+  gallery_title: "ギャラリー", gallery_open: "開く", gallery_locked: "ロック中",
+  gallery_sealed_kicker: "封印された封筒", gallery_reveal_coming: "まもなく公開",
+  gallery_unlock_now: "今すぐ解除", gallery_empty: "まだ写真がありません。",
+  checkin_kicker: "チェックイン", checkin_scan_title: "パスをスキャン", checkin_scan_cta: "チェックイン",
+  checkin_aim_hint: "QR コードを狙う", checkin_arrivals: "到着",
+  err_generic_title: "問題が発生しました", err_generic_body: "少し待ってからやり直してください。",
+  err_network: "ネットワークに接続できません。",
+});
+
+Object.assign(ru, {
+  continue_guest: "Продолжить как гость", language_sub: "Мы переведём приложение и приглашения.",
+  role_guest: "Гость", retry: "Повторить", loading: "Загрузка…",
+  paywall_kicker: "SHEREHE PRO", paywall_hero_sub: "Премиум-шаблоны, больше гостей, HD-память.",
+  paywall_select_tier: "Выберите размер события", paywall_cta_start_free: "Начать бесплатно · {name}",
+  paywall_maybe_later: "Позже", paywall_restore: "Восстановить покупки", paywall_processing: "Обработка…",
+  profile_pro: "✦ Pro-участник", profile_help: "Помощь и поддержка",
+  pass_title: "Ваш пропуск", pass_show_at_door: "Покажите пропуск на входе", pass_checked_in: "Отметка пройдена",
+  pass_open_camera: "Открыть камеру", pass_add_calendar: "Добавить в календарь", pass_photos_left: "Фото осталось",
+  pass_rsvp_going: "Иду", pass_rsvp_maybe: "Возможно", pass_rsvp_no: "Не смогу",
+  gallery_title: "Галереи", gallery_open: "Открыть", gallery_locked: "Закрыто",
+  gallery_sealed_kicker: "ЗАПЕЧАТАННЫЙ КОНВЕРТ", gallery_reveal_coming: "Скоро откроется",
+  gallery_unlock_now: "Открыть сейчас", gallery_empty: "Пока нет фото.",
+  checkin_kicker: "РЕГИСТРАЦИЯ", checkin_scan_title: "Сканировать пропуск", checkin_scan_cta: "Зарегистрировать",
+  checkin_aim_hint: "Наведите на QR", checkin_arrivals: "Прибытия",
+  err_generic_title: "Что-то пошло не так", err_generic_body: "Попробуйте ещё раз.",
+  err_network: "Нет соединения. Проверьте сеть.",
+});
+
+Object.assign(ko, {
+  paywall_hero_sub: "프리미엄 템플릿, 더 큰 게스트 리스트, HD 추억.",
+  paywall_restore: "구매 복원", paywall_processing: "처리 중…",
+  pass_show_at_door: "입구에서 이 패스를 보여주세요", pass_photos_left: "남은 사진",
+  pass_rsvp_going: "갑니다", pass_rsvp_maybe: "아마도", pass_rsvp_no: "못 가요",
+  gallery_sealed_kicker: "봉인된 봉투", gallery_reveal_coming: "공개가 다가옵니다",
+  gallery_unlock_now: "지금 해제", gallery_empty: "아직 사진이 없습니다.",
+  checkin_aim_hint: "QR을 조준하세요", checkin_arrivals: "도착",
+  err_generic_title: "문제가 발생했습니다", err_generic_body: "잠시 후 다시 시도해 주세요.",
+  err_network: "네트워크에 연결할 수 없습니다.",
+});
+
+Object.assign(tr, {
+  paywall_restore: "Satın almaları geri yükle", paywall_processing: "İşleniyor…",
+  pass_show_at_door: "Bu geçişi kapıda gösterin", pass_photos_left: "Kalan fotoğraf",
+  pass_rsvp_going: "Geliyorum", pass_rsvp_maybe: "Belki", pass_rsvp_no: "Gelemem",
+  gallery_sealed_kicker: "MÜHÜRLÜ ZARF", gallery_reveal_coming: "Açılış yakında",
+  gallery_unlock_now: "Şimdi aç", gallery_empty: "Henüz fotoğraf yok.",
+  checkin_aim_hint: "QR'a doğrultun", checkin_arrivals: "Geliş",
+  err_generic_title: "Bir şeyler ters gitti", err_generic_body: "Birazdan tekrar deneyin.",
+  err_network: "Ağ kullanılamıyor. Bağlantınızı kontrol edin.",
+});
+
+Object.assign(id, {
+  paywall_restore: "Pulihkan pembelian", paywall_processing: "Memproses…",
+  pass_show_at_door: "Tunjukkan tiket ini di pintu", pass_photos_left: "Sisa foto",
+  pass_rsvp_going: "Hadir", pass_rsvp_maybe: "Mungkin", pass_rsvp_no: "Tidak bisa",
+  gallery_sealed_kicker: "AMPLOP TERSEGEL", gallery_reveal_coming: "Pengungkapan akan datang",
+  gallery_unlock_now: "Buka sekarang", gallery_empty: "Belum ada foto.",
+  checkin_aim_hint: "Arahkan ke QR", checkin_arrivals: "Kedatangan",
+  err_generic_title: "Terjadi kesalahan", err_generic_body: "Coba lagi sebentar.",
+  err_network: "Tidak ada koneksi. Periksa jaringan Anda.",
+});
+
+Object.assign(nl, {
+  paywall_restore: "Aankopen herstellen", paywall_processing: "Verwerken…",
+  pass_show_at_door: "Toon deze pas bij de deur", pass_photos_left: "Foto's resterend",
+  pass_rsvp_going: "Kom", pass_rsvp_maybe: "Misschien", pass_rsvp_no: "Kan niet",
+  gallery_sealed_kicker: "VERZEGELDE ENVELOP", gallery_reveal_coming: "De onthulling komt",
+  gallery_unlock_now: "Nu ontgrendelen", gallery_empty: "Nog geen foto's.",
+  checkin_aim_hint: "Richt op de QR", checkin_arrivals: "Aankomsten",
+  err_generic_title: "Er ging iets mis", err_generic_body: "Probeer het zo opnieuw.",
+  err_network: "Geen netwerk. Controleer je verbinding.",
+});
+
 const dicts: Record<LangCode, Dict> = { en, es, fr, ar, sw, pt, hi, zh, de, it, ja, ru, ko, tr, id, nl };
 
 /** Substitute `{token}` placeholders. */
