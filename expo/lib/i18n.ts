@@ -248,6 +248,17 @@ const en: Dict = {
   paywall_skip_free: "Start free — Starter plan",
   paywall_maybe_later: "Maybe later",
   paywall_legal: "Pay with Apple Pay, Google Pay or card via Stripe. One-time per event — cancel anytime.",
+  paywall_processing: "Processing…",
+  paywall_restore: "Restore purchases",
+  paywall_restored_title: "Welcome back",
+  paywall_restored_body: "Your Pro access has been restored on this device.",
+  paywall_no_purchases_title: "Nothing to restore",
+  paywall_no_purchases_body: "We couldn't find a previous purchase on this Apple ID / Google account.",
+  paywall_restore_unavailable_title: "Not available in Expo Go",
+  paywall_restore_unavailable_body: "Restore purchases works in a development or production build. In Expo Go we mock the unlock for testing.",
+  paywall_purchase_failed_title: "Purchase failed",
+  paywall_purchase_failed_body: "Something went wrong while completing the purchase. Please try again.",
+  paywall_expo_go_note: "Running in Expo Go — purchases are mocked. Build a dev client to test real StoreKit / Play Billing.",
 
   // create event
   create_title: "New event",

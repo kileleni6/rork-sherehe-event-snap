@@ -2,12 +2,13 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
 import { Check, Crown, HardDrive, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { configurePurchases, isPurchasesAvailable, purchasePackageByKey, restorePurchases } from "@/lib/purchases";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
@@ -44,6 +45,12 @@ export default function PaywallScreen() {
   const { setProfile, profile, retentionDays } = useEvents();
   const { t } = useOnboarding();
   const [tier, setTier] = useState<TierId>("celebration");
+  const [purchasing, setPurchasing] = useState<boolean>(false);
+  const [restoring, setRestoring] = useState<boolean>(false);
+
+  useEffect(() => {
+    configurePurchases().catch(() => {});
+  }, []);
 
   const selected = useMemo(() => TIERS.find((x) => x.id === tier), [tier]);
 
@@ -82,15 +89,52 @@ export default function PaywallScreen() {
   }
 
   const subscribe = async () => {
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    // RevenueCat purchase flow: in a dev/native build we'd call
-    // Purchases.purchasePackage(offering.availablePackages.find(p => p.identifier === selected.rcPackage))
-    // For Expo Go we unlock locally using the same entitlement ("pro") for testing.
-    if (selected?.rcProductId) {
-      console.log("[paywall] purchase", selected.rcProductId, selected.rcPackage);
+    if (!selected) return;
+    if (selected.free) {
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      await setProfile({ premium: false });
+      router.back();
+      return;
     }
-    await setProfile({ premium: !selected?.free });
-    router.back();
+    if (!selected.rcPackage) return;
+
+    setPurchasing(true);
+    try {
+      const result = await purchasePackageByKey(selected.rcPackage, selected.rcProductId);
+      if (result.success) {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        await setProfile({ premium: true });
+        if (result.mocked && Platform.OS !== "web") {
+          console.log("[paywall] mock unlock (Expo Go)");
+        }
+        router.back();
+      } else if (result.error === "user_cancelled") {
+        // silent — user backed out of the native sheet
+      } else {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        Alert.alert(t("paywall_purchase_failed_title"), t("paywall_purchase_failed_body"));
+      }
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const restore = async () => {
+    setRestoring(true);
+    try {
+      const r = await restorePurchases();
+      if (r.entitled) {
+        await setProfile({ premium: true });
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Alert.alert(t("paywall_restored_title"), t("paywall_restored_body"));
+      } else if (r.mocked) {
+        Alert.alert(t("paywall_restore_unavailable_title"), t("paywall_restore_unavailable_body"));
+      } else {
+        Alert.alert(t("paywall_no_purchases_title"), t("paywall_no_purchases_body"));
+      }
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const ctaTitle = selected?.free
@@ -217,10 +261,28 @@ export default function PaywallScreen() {
         </ScrollView>
 
         <View style={[ps.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
-          <PrimaryButton title={ctaTitle} icon={Crown} onPress={subscribe} />
-          <Pressable onPress={() => router.back()} style={{ alignSelf: "center", marginTop: 10 }}>
-            <Text style={ps.maybe}>{t("paywall_maybe_later")}</Text>
-          </Pressable>
+          <PrimaryButton
+            title={purchasing ? t("paywall_processing") : ctaTitle}
+            icon={Crown}
+            onPress={subscribe}
+            disabled={purchasing || restoring}
+          />
+          <View style={ps.footerRow}>
+            <Pressable onPress={() => router.back()} hitSlop={8}>
+              <Text style={ps.maybe}>{t("paywall_maybe_later")}</Text>
+            </Pressable>
+            <Text style={ps.footerDot}>·</Text>
+            <Pressable onPress={restore} hitSlop={8} disabled={restoring || purchasing}>
+              {restoring ? (
+                <ActivityIndicator color="rgba(255,255,255,0.7)" size="small" />
+              ) : (
+                <Text style={ps.maybe}>{t("paywall_restore")}</Text>
+              )}
+            </Pressable>
+          </View>
+          {!isPurchasesAvailable() ? (
+            <Text style={ps.devNote}>{t("paywall_expo_go_note")}</Text>
+          ) : null}
         </View>
       </SafeAreaView>
     </View>
@@ -347,6 +409,9 @@ const ps = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.08)",
   },
   maybe: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" as const },
+  footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 10 },
+  footerDot: { color: "rgba(255,255,255,0.35)", fontSize: 13 },
+  devNote: { color: "rgba(255,255,255,0.45)", fontSize: 10, textAlign: "center", marginTop: 8, lineHeight: 14, paddingHorizontal: 12 },
 
   alreadyWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 12 },
   alreadyTitle: { color: C.text, fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.4, textAlign: "center" },
