@@ -19,16 +19,22 @@ function fetchWithTimeout(
   init?: RequestInit,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_S * 1000);
+  const timer = setTimeout(
+    () => controller.abort(new Error("Request timed out")),
+    FETCH_TIMEOUT_S * 1000,
+  );
 
   // Merge signals so an upstream caller's signal can also abort.
   const mergedInit: RequestInit = { ...init };
   if (init?.signal) {
     // Chain: if EITHER our timeout OR the original signal fires, abort.
     const originalSignal = init.signal as AbortSignal;
-    originalSignal.addEventListener("abort", () => controller.abort(), {
-      once: true,
-    });
+    // Propagate the original abort, carrying its reason if available.
+    originalSignal.addEventListener(
+      "abort",
+      () => controller.abort(originalSignal.reason ?? new Error("Aborted by caller")),
+      { once: true },
+    );
   }
   mergedInit.signal = controller.signal;
 
