@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Platform } from "react-native";
 
 import { EventsProvider } from "@/providers/EventsProvider";
 import { OnboardingProvider, useOnboarding } from "@/providers/OnboardingProvider";
@@ -11,6 +12,39 @@ import { OnboardingProvider, useOnboarding } from "@/providers/OnboardingProvide
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+/**
+ * Catch unhandled promise rejections from third-party libraries (PostHog
+ * analytics, AI SDK, etc.) so they don't surface as red-box crashes in dev
+ * or full-screen error-boundary fallbacks.
+ */
+if (typeof globalThis !== "undefined") {
+  const trackingError = (e: unknown) => {
+    const msg = e instanceof Error ? e.message : String(e ?? "");
+    // Suppress cosmetic network blips that are already handled elsewhere.
+    if (
+      msg === "Failed to fetch" ||
+      msg === "Network request failed" ||
+      msg === "AbortError" ||
+      msg.includes("AbortError")
+    ) {
+      console.log("[app] suppressed unhandled rejection:", msg);
+      return;
+    }
+    console.warn("[app] unhandled promise rejection:", msg);
+  };
+
+  // Web / React Native both support this as of Hermes 0.12+
+  if (typeof globalThis.addEventListener === "function") {
+    globalThis.addEventListener("unhandledrejection", (event: Event) => {
+      const e = event as Event & { reason?: unknown };
+      if (e.reason) {
+        e.preventDefault?.();
+        trackingError(e.reason);
+      }
+    });
+  }
+}
 
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { completed, isLoading } = useOnboarding();

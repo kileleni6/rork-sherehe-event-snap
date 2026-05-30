@@ -6,16 +6,45 @@ import { Platform } from "react-native";
 /** Max seconds to wait for any Supabase request before giving up. */
 const FETCH_TIMEOUT_S = 12;
 
-/** Wraps the global fetch with a timeout so "Failed to fetch" doesn't hang forever. */
+/**
+ * Wraps the global fetch with a timeout AND converts network-level failures
+ * ("Failed to fetch", "Network request failed", etc.) into synthetic HTTP 503
+ * responses.  This lets the Supabase client (including its internal GoTrue
+ * auth refresh) handle connectivity problems gracefully through the normal
+ * `{ data, error }` pattern instead of throwing unhandled promise rejections
+ * that the Rork error boundary displays as a full-screen crash.
+ */
 function fetchWithTimeout(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_S * 1000);
-  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
+
+  // Merge signals so an upstream caller's signal can also abort.
+  const mergedInit: RequestInit = { ...init };
+  if (init?.signal) {
+    // Chain: if EITHER our timeout OR the original signal fires, abort.
+    const originalSignal = init.signal as AbortSignal;
+    originalSignal.addEventListener("abort", () => controller.abort(), {
+      once: true,
+    });
+  }
+  mergedInit.signal = controller.signal;
+
+  return fetch(input, mergedInit)
+    .catch((err: unknown) => {
+      // Convert network-layer failures into a synthetic 503 so callers (and
+      // the Supabase client internals) treat it as a server-unavailable error
+      // rather than an unhandled exception.
+      const message =
+        err instanceof Error ? err.message : "Network request failed";
+      return new Response(
+        JSON.stringify({ message, code: "NETWORK_ERROR" }),
+        { status: 503, statusText: message, headers: { "content-type": "application/json" } },
+      );
+    })
+    .finally(() => clearTimeout(timer));
 }
 
 import type { Event, Photo, Rsvp, ScheduleItem } from "@/types/event";
