@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sherehe ",
+    "name": "Sherehe",
     "slug": "sherehe",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,12 +33,13 @@
       "package": "app.rork.ksumdxxeaoluibrtffh9i",
       "versionCode": 1,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -76,6 +77,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "318519ee-2cbd-44c5-b120-8b6f7db66f5f"
+      }
+    },
+    "owner": "kileleni6s-organization-102"
   }
 }
