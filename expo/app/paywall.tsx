@@ -1,9 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import { Check, Crown, HardDrive, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
+import { Check, Crown, HardDrive, Mail, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/ui";
@@ -12,7 +12,7 @@ import { configurePurchases, isPurchasesAvailable, purchasePackageByKey, restore
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
-type TierId = "starter" | "celebration" | "premium" | "large" | "enterprise" | "super";
+type TierId = "starter" | "celebration" | "premium" | "large" | "enterprise" | "super" | "mega";
 
 interface Tier {
   id: TierId;
@@ -37,6 +37,7 @@ const TIERS: Tier[] = [
   { id: "large",       name: "Large Event",      blurb: "Up to 500 guests",     price: "$149.99",   per: "one_time", guests: "500 guests",     storage: "150 GB",                      rcPackage: "large",       rcProductId: "sherehe_large" },
   { id: "enterprise",  name: "Enterprise Event", blurb: "Up to 1,000 guests",   price: "$299.99",   per: "one_time", guests: "1,000 guests",   storage: "500 GB",                      rcPackage: "enterprise",  rcProductId: "sherehe_enterprise" },
   { id: "super",       name: "Super Event",      blurb: "Up to 2,000 guests",   price: "$499.99",   per: "one_time", guests: "2,000 guests",   storage: "Unlimited",                   rcPackage: "super",       rcProductId: "sherehe_super" },
+  { id: "mega",        name: "Mega Event",        blurb: "2,000+ guests",         price: "Custom",    per: "one_time", guests: "2,000+ guests",  storage: "Unlimited" },
 ];
 
 export default function PaywallScreen() {
@@ -96,6 +97,15 @@ export default function PaywallScreen() {
       router.back();
       return;
     }
+    // "Mega Event" tier — custom pricing, contact us
+    if (selected.id === "mega") {
+      if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+      Linking.openURL("mailto:events@sharehe.net?subject=Mega%20Event%20Inquiry").catch(() => {
+        Alert.alert("Contact us", "Please email events@sharehe.net for custom event pricing.");
+      });
+      return;
+    }
+
     if (!selected.rcPackage) return;
 
     setPurchasing(true);
@@ -139,6 +149,8 @@ export default function PaywallScreen() {
 
   const ctaTitle = selected?.free
     ? t("paywall_cta_start_free", { name: selected.name })
+    : selected?.id === "mega"
+    ? "Contact us for pricing"
     : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
 
   const perLabel = (per: Tier["per"]) =>
@@ -228,8 +240,8 @@ export default function PaywallScreen() {
                     </View>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[ps.tierPrice, tr.free ? { color: C.gold } : null]}>{tr.price}</Text>
-                    <Text style={ps.tierPer}>{perLabel(tr.per)}</Text>
+                    <Text style={[ps.tierPrice, tr.free ? { color: C.gold } : tr.id === "mega" ? { color: C.gold } : null]}>{tr.price}</Text>
+                    <Text style={ps.tierPer}>{tr.id === "mega" ? "Contact us" : perLabel(tr.per)}</Text>
                     <View style={[ps.radio, active ? ps.radioOn : null]}>
                       {active ? <Check color={C.text} size={14} /> : null}
                     </View>
@@ -263,7 +275,7 @@ export default function PaywallScreen() {
         <View style={[ps.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
           <PrimaryButton
             title={purchasing ? t("paywall_processing") : ctaTitle}
-            icon={Crown}
+            icon={tier === "mega" ? Mail : Crown}
             onPress={subscribe}
             disabled={purchasing || restoring}
           />

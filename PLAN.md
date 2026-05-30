@@ -45,8 +45,10 @@ After this pass the loop is: host creates → guest RSVPs → guest gets pass �
 ## Beyond PLAN.md (completed)
 - [x] Supabase Storage for guest photo uploads with 30-day retention
 - [x] Supabase edge function + pg_cron SQL migration for hourly photo purge
-- [x] RevenueCat pricing wired: 5 tiers (Starter free → Super Event $499.99 one-time)
-- [x] react-native-purchases purchase flow with Expo Go mock fallback
+- [x] RevenueCat pricing wired: 6 tiers (Starter free → Mega Event custom pricing/contact us)
+- [x] react-native-purchases purchase flow with dev/sandbox mock fallback (Rork cloud simulator)
+- [x] Mega Event tier (2000+ guests) with custom pricing — Contact Us mailto
+- [x] Optional phone number field on guest RSVP form for Twilio SMS notifications
 - [x] Pro gating throughout (locked screens, upgrade prompts all hidden when premium)
 - [x] Swahili flag: Kenya → Tanzania
 - [x] i18n system: 16 languages, RTL support, device language detection, locale-aware formatting

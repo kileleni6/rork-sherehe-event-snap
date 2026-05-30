@@ -37,7 +37,10 @@ let cachedPurchases: typeof import("react-native-purchases").default | null = nu
 
 function loadPurchases(): typeof import("react-native-purchases").default | null {
   if (Platform.OS === "web") return null;
-  if (isExpoGo) return null;
+  // In dev/sandbox builds (Rork cloud simulator, local dev) the native
+  // RevenueCat module may load but StoreKit sandbox purchases can't
+  // complete — treat them as mocks so the UI flow works end-to-end.
+  if (isExpoGo || __DEV__) return null;
   if (cachedPurchases) return cachedPurchases;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

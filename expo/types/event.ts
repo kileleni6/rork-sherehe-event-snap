@@ -10,6 +10,8 @@ export interface Rsvp {
   guests: number;
   note?: string;
   createdAt: number;
+  /** optional phone number for SMS notifications (Twilio) */
+  phone?: string;
   /** short token guests show at the door (last 6 of id, uppercased) */
   passCode: string;
   /** epoch ms when host checked the guest in */

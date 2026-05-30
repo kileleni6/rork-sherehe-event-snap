@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Calendar as CalendarIcon, Check, ChevronLeft, Copy, Link as LinkIcon, MessageCircle, Share2, Ticket } from "lucide-react-native";
+import { Calendar as CalendarIcon, Check, ChevronLeft, Copy, Link as LinkIcon, MessageCircle, Phone, Share2, Ticket } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +22,7 @@ export default function InviteScreen() {
   const { findById, addRsvp } = useEvents();
   const event = findById(id);
   const [name, setName] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
   const [guests, setGuests] = useState<number>(1);
   const [status, setStatus] = useState<RsvpStatus>("yes");
   const [note, setNote] = useState<string>("");
@@ -48,6 +49,7 @@ export default function InviteScreen() {
       status,
       guests: status === "yes" ? guests : 0,
       note: note || undefined,
+      phone: phone || undefined,
     });
     setLastRsvpId(r.id);
     setSubmitted(true);
@@ -243,6 +245,24 @@ export default function InviteScreen() {
                 </>
               ) : null}
 
+              <Text style={s.label}>
+                Phone number (optional){" "}
+                <Text style={{ color: C.subtext, fontWeight: "400" as const }}>for SMS updates</Text>
+              </Text>
+              <View style={s.phoneRow}>
+                <View style={s.phonePrefix}>
+                  <Phone color={C.subtext} size={14} />
+                </View>
+                <TextInput
+                  placeholder="+1 234 567 8900"
+                  placeholderTextColor={C.mute}
+                  value={phone}
+                  onChangeText={setPhone}
+                  style={s.phoneInput}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
               <Text style={s.label}>Note to host (optional)</Text>
               <TextInput
                 placeholder="Bringing dancing shoes…"
@@ -361,6 +381,29 @@ const s = StyleSheet.create({
   calRowText: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
   calRowSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
   calRowHint: { color: C.pinkHi, fontWeight: "800" as const, fontSize: 12, letterSpacing: 0.4 },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+    backgroundColor: C.cardHi,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.hair,
+    overflow: "hidden",
+  },
+  phonePrefix: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRightWidth: 1,
+    borderRightColor: C.hair,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: C.text,
+    fontSize: 15,
+  },
   footer: {
     position: "absolute",
     bottom: 0,

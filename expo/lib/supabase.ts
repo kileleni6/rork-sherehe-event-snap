@@ -142,6 +142,7 @@ interface RsvpRow {
   checked_in_at: string | null;
   shots_used: number;
   rejection_reason: string | null;
+  phone: string | null;
   created_at: string;
 }
 
@@ -208,6 +209,7 @@ function mapRsvp(row: RsvpRow): Rsvp {
     checkedInAt: row.checked_in_at ? new Date(row.checked_in_at).getTime() : undefined,
     shotsUsed: row.shots_used,
     rejectionReason: row.rejection_reason ?? undefined,
+    phone: row.phone ?? undefined,
     createdAt: new Date(row.created_at).getTime(),
   };
 }
@@ -454,6 +456,7 @@ export async function createSupabaseRsvp(
         status: rsvp.status,
         guests: rsvp.guests,
         note: rsvp.note ?? null,
+        phone: rsvp.phone ?? null,
         pass_code: passCode,
       })
       .select("*")
