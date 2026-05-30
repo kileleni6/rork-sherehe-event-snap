@@ -11,6 +11,19 @@ import {
   STORAGE_RETENTION_DAYS,
   uploadEventPhoto,
 } from "@/lib/storage";
+import {
+  createSupabaseEvent,
+  createSupabasePhoto,
+  createSupabaseRsvp,
+  deleteSupabaseEvent,
+  deleteSupabasePhoto,
+  deleteSupabaseRsvp,
+  fetchAllEvents,
+  fetchEventById,
+  updateSupabaseEvent,
+  updateSupabaseRsvp,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import type { Event, Photo, Rsvp, RsvpStatus, ScheduleItem } from "@/types/event";
 
 const STORAGE_KEY = "sherehe.events.v1";
@@ -107,26 +120,74 @@ function seedEvents(): Event[] {
   ];
 }
 
+/**
+ * Primary data provider for events, RSVPs, passes, check-ins, and guest
+ * permissions. Uses Supabase as the canonical store with AsyncStorage as a
+ * local cache / offline fallback.
+ *
+ * Read path:
+ *   1. Try Supabase → returns fresh server data.
+ *   2. If Supabase fails → read from AsyncStorage cache.
+ *   3. If cache is empty → seed demo events.
+ *
+ * Write path (mutations):
+ *   1. Try Supabase → on success invalidate the query cache so the UI
+ *      refreshes from the server.
+ *   2. If Supabase fails → write to AsyncStorage only, keeping the app
+ *      functional offline.
+ */
 export const [EventsProvider, useEvents] = createContextHook(() => {
   const qc = useQueryClient();
 
+  // -- read cached events from AsyncStorage (used as fallback) ----------
+  const readCache = useCallback(async (): Promise<Event[]> => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as Event[];
+    } catch (e) {
+      console.log("[events] cache read failed", e);
+    }
+    return [];
+  }, []);
+
+  const writeCache = useCallback(async (events: Event[]) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+    } catch (e) {
+      console.log("[events] cache write failed", e);
+    }
+  }, []);
+
+  // -- main events query -------------------------------------------------
   const eventsQuery = useQuery({
     queryKey: ["events"],
     queryFn: async (): Promise<Event[]> => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) return JSON.parse(raw) as Event[];
-      } catch (e) {
-        console.log("[events] load failed", e);
+      // 1. Try Supabase
+      if (isSupabaseConfigured) {
+        try {
+          const server = await fetchAllEvents();
+          if (server.length > 0) {
+            await writeCache(server);
+            return server;
+          }
+          // Server returned empty (new user). Check cache.
+        } catch (e) {
+          console.log("[events] Supabase fetch failed, falling back to cache", e);
+        }
       }
+
+      // 2. Fall back to AsyncStorage cache
+      const cached = await readCache();
+      if (cached.length > 0) return cached;
+
+      // 3. Ultimate fallback: seed demo data
       const seeded = seedEvents();
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-      } catch {}
+      await writeCache(seeded);
       return seeded;
     },
   });
 
+  // -- profile (stays in AsyncStorage — not part of core tables) ---------
   const profileQuery = useQuery({
     queryKey: ["profile"],
     queryFn: async (): Promise<Profile> => {
@@ -138,25 +199,30 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     },
   });
 
-  const persist = useCallback(async (next: Event[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch (e) {
-      console.log("[events] save failed", e);
-    }
-  }, []);
-
   const persistProfile = useCallback(async (p: Profile) => {
     try {
       await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
     } catch {}
   }, []);
 
+  // -- derived data ------------------------------------------------------
   const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const profile = profileQuery.data ?? DEFAULT_PROFILE;
 
+  // -- mutations ----------------------------------------------------------
+
+  /** Create a new event. Supabase-first, AsyncStorage fallback. */
   const createMutation = useMutation({
-    mutationFn: async (draft: Omit<Event, "id" | "rsvps" | "photos" | "invited" | "views">) => {
+    mutationFn: async (
+      draft: Omit<Event, "id" | "rsvps" | "photos" | "invited" | "views">
+    ) => {
+      // Try Supabase
+      if (isSupabaseConfigured) {
+        const serverEv = await createSupabaseEvent(draft);
+        if (serverEv) return serverEv;
+      }
+
+      // Fallback: local-only event
       const ev: Event = {
         ...draft,
         id: `e_${Date.now()}`,
@@ -166,7 +232,7 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
         views: 0,
       };
       const next = [ev, ...events];
-      await persist(next);
+      await writeCache(next);
       return ev;
     },
     onSuccess: () => {
@@ -174,69 +240,180 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     },
   });
 
+  /** Update an event (and optionally its cached copy). */
   const updateEvent = useCallback(
     async (id: string, patch: Partial<Event>) => {
-      const next = events.map((e) => (e.id === id ? { ...e, ...patch } : e));
-      await persist(next);
-      qc.setQueryData(["events"], next);
+      let serverOk = false;
+      if (isSupabaseConfigured) {
+        serverOk = await updateSupabaseEvent(id, patch);
+      }
+
+      if (serverOk) {
+        // Let the server become the source of truth on next fetch
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        // Offline fallback: patch the local cache
+        const next = events.map((e) => (e.id === id ? { ...e, ...patch } : e));
+        await writeCache(next);
+        qc.setQueryData(["events"], next);
+      }
+
+      // Also eagerly update the specific event if it's the one being viewed
+      if (serverOk) {
+        // Refresh from server after a brief delay to let replication settle
+        setTimeout(() => {
+          qc.invalidateQueries({ queryKey: ["events"] });
+        }, 500);
+      }
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
+  /** Delete an event. */
   const deleteEvent = useCallback(
     async (id: string) => {
-      const next = events.filter((e) => e.id !== id);
-      await persist(next);
-      qc.setQueryData(["events"], next);
+      let serverOk = false;
+      if (isSupabaseConfigured) {
+        serverOk = await deleteSupabaseEvent(id);
+      }
+
+      if (serverOk) {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        const next = events.filter((e) => e.id !== id);
+        await writeCache(next);
+        qc.setQueryData(["events"], next);
+      }
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
+  /** Add an RSVP for an event. */
   const addRsvp = useCallback(
-    async (eventId: string, rsvp: Omit<Rsvp, "id" | "createdAt" | "passCode">): Promise<Rsvp> => {
-      const id = `r_${Date.now()}`;
-      const passCode = (rsvp.name.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "GUEST")
-        + String(Math.floor(Math.random() * 90) + 10);
-      const r: Rsvp = { ...rsvp, id, createdAt: Date.now(), passCode, shotsUsed: 0 };
+    async (
+      eventId: string,
+      rsvp: Omit<Rsvp, "id" | "createdAt" | "passCode">
+    ): Promise<Rsvp> => {
+      let serverRsvp: Rsvp | null = null;
+      if (isSupabaseConfigured) {
+        serverRsvp = await createSupabaseRsvp(eventId, rsvp);
+      }
+
+      const fallbackId = `r_${Date.now()}`;
+      const fallbackCode =
+        (rsvp.name.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "GUEST") +
+        String(Math.floor(Math.random() * 90) + 10);
+      const now = Date.now();
+
+      if (serverRsvp) {
+        // Server succeeded — also update local cache so the UI is instant
+        const next = events.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                rsvps: [serverRsvp!, ...e.rsvps],
+                invited: Math.max(e.invited, e.rsvps.length + 1),
+              }
+            : e
+        );
+        await writeCache(next);
+        qc.setQueryData(["events"], next);
+        return serverRsvp;
+      }
+
+      // Offline fallback
+      const r: Rsvp = {
+        ...rsvp,
+        id: fallbackId,
+        createdAt: now,
+        passCode: fallbackCode,
+        shotsUsed: 0,
+      };
       const next = events.map((e) =>
         e.id === eventId
           ? { ...e, rsvps: [r, ...e.rsvps], invited: Math.max(e.invited, e.rsvps.length + 1) }
           : e
       );
-      await persist(next);
+      await writeCache(next);
       qc.setQueryData(["events"], next);
       return r;
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
   /** Mark a guest checked-in (or undo). Pass `at = 0` to undo. */
   const checkInGuest = useCallback(
     async (eventId: string, rsvpId: string, at: number = Date.now()) => {
-      const next = events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              rsvps: e.rsvps.map((r) =>
-                r.id === rsvpId ? { ...r, checkedInAt: at > 0 ? at : undefined } : r
-              ),
-            }
-          : e
-      );
-      await persist(next);
-      qc.setQueryData(["events"], next);
+      let serverOk = false;
+      if (isSupabaseConfigured) {
+        serverOk = await updateSupabaseRsvp(rsvpId, {
+          checkedInAt: at > 0 ? at : undefined,
+        });
+      }
+
+      if (serverOk) {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        const next = events.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                rsvps: e.rsvps.map((r) =>
+                  r.id === rsvpId ? { ...r, checkedInAt: at > 0 ? at : undefined } : r
+                ),
+              }
+            : e
+        );
+        await writeCache(next);
+        qc.setQueryData(["events"], next);
+      }
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
+  /** Reject a guest at the door with an optional reason. Pass `null` to undo. */
+  const rejectGuest = useCallback(
+    async (eventId: string, rsvpId: string, reason: string | null = "") => {
+      let serverOk = false;
+      if (isSupabaseConfigured) {
+        serverOk = await updateSupabaseRsvp(rsvpId, {
+          rejectionReason: reason === null ? undefined : reason || "(no reason)",
+        });
+      }
+
+      if (serverOk) {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        const next = events.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                rsvps: e.rsvps.map((r) =>
+                  r.id === rsvpId
+                    ? {
+                        ...r,
+                        rejectionReason:
+                          reason === null ? undefined : reason || "(no reason)",
+                      }
+                    : r
+                ),
+              }
+            : e
+        );
+        await writeCache(next);
+        qc.setQueryData(["events"], next);
+      }
+    },
+    [events, writeCache, qc]
+  );
+
+  /** Add a photo to an event (with Supabase Storage upload + DB record). */
   const addPhoto = useCallback(
     async (eventId: string, photo: Omit<Photo, "id" | "takenAt">) => {
       const id = `p_${Date.now()}`;
       const takenAt = Date.now();
 
-      // Upload to Supabase Storage so the photo is durable across devices and
-      // covered by the 30-day server-side retention job. On failure we keep the
-      // original local URI so the guest never loses their shot.
+      // Upload to Supabase Storage
       const uploaded = await uploadEventPhoto({ eventId, photoId: id, uri: photo.uri });
 
       const p: Photo = {
@@ -248,38 +425,69 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
         uploadedAt: uploaded?.uploadedAt,
         expiresAt: uploaded?.expiresAt ?? computeExpiresAt(takenAt),
       };
+
+      // Try Supabase DB record
+      let dbOk = false;
+      if (isSupabaseConfigured) {
+        const dbPhoto = await createSupabasePhoto(eventId, p);
+        if (dbPhoto) {
+          dbOk = true;
+          p.id = dbPhoto.id; // use server-generated ID
+        }
+      }
+
+      // Local cache — always update so UI reflects immediately
       const next = events.map((e) =>
         e.id === eventId ? { ...e, photos: [p, ...e.photos] } : e
       );
-      await persist(next);
-      qc.setQueryData(["events"], next);
+      await writeCache(next);
+
+      if (dbOk) {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        qc.setQueryData(["events"], next);
+      }
+
       return p;
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
+  /** Remove a photo. */
   const removePhoto = useCallback(
     async (eventId: string, photoId: string) => {
       const target = events
         .find((e) => e.id === eventId)
         ?.photos.find((p) => p.id === photoId);
+
+      // Delete from Storage bucket
       if (target?.storagePath) {
-        // Fire and forget — UI shouldn't block on the network.
         deleteEventPhoto(target.storagePath).catch(() => {});
       }
+
+      // Try Supabase DB delete
+      let dbOk = false;
+      if (isSupabaseConfigured) {
+        dbOk = await deleteSupabasePhoto(photoId);
+      }
+
       const next = events.map((e) =>
-        e.id === eventId ? { ...e, photos: e.photos.filter((p) => p.id !== photoId) } : e
+        e.id === eventId
+          ? { ...e, photos: e.photos.filter((p) => p.id !== photoId) }
+          : e
       );
-      await persist(next);
-      qc.setQueryData(["events"], next);
+      await writeCache(next);
+
+      if (dbOk) {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      } else {
+        qc.setQueryData(["events"], next);
+      }
     },
-    [events, persist, qc]
+    [events, writeCache, qc]
   );
 
-  /**
-   * Strip photos the server has already purged from local cache so the gallery
-   * doesn't render dead URLs. Matches the server-side retention window.
-   */
+  /** Strip purged photos from local cache. */
   const reconcileRetention = useCallback(async () => {
     const now = Date.now();
     let changed = false;
@@ -289,11 +497,12 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
       return kept.length !== e.photos.length ? { ...e, photos: kept } : e;
     });
     if (changed) {
-      await persist(next);
+      await writeCache(next);
       qc.setQueryData(["events"], next);
     }
-  }, [events, persist, qc]);
+  }, [events, writeCache, qc]);
 
+  /** Immediately unlock the gallery. */
   const unlockGallery = useCallback(
     async (eventId: string) => {
       await updateEvent(eventId, { revealAt: Date.now() - 1000 });
@@ -301,27 +510,7 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     [updateEvent]
   );
 
-  /** Reject a guest at the door with an optional reason. Pass `null` to undo. */
-  const rejectGuest = useCallback(
-    async (eventId: string, rsvpId: string, reason: string | null = "") => {
-      const next = events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              rsvps: e.rsvps.map((r) =>
-                r.id === rsvpId
-                  ? { ...r, rejectionReason: reason === null ? undefined : (reason || "(no reason)") }
-                  : r
-              ),
-            }
-          : e
-      );
-      await persist(next);
-      qc.setQueryData(["events"], next);
-    },
-    [events, persist, qc]
-  );
-
+  /** Update profile (AsyncStorage only). */
   const setProfile = useCallback(
     async (p: Partial<Profile>) => {
       const next = { ...profile, ...p };
@@ -331,13 +520,16 @@ export const [EventsProvider, useEvents] = createContextHook(() => {
     [profile, persistProfile, qc]
   );
 
+  // -- convenience ---------------------------------------------------------
+
   const upcoming = useMemo(
     () => [...events].sort((a, b) => a.date - b.date),
     [events]
   );
 
   const findById = useCallback(
-    (id: string | undefined): Event | undefined => events.find((e) => e.id === id),
+    (id: string | undefined): Event | undefined =>
+      events.find((e) => e.id === id),
     [events]
   );
 

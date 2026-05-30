@@ -53,3 +53,4 @@ After this pass the loop is: host creates → guest RSVPs → guest gets pass �
 - [x] Full localization patches for all 16 languages (paywall/profile/gallery/pass/check-in/errors)
 - [x] Push notifications: `expo-notifications` + `expo-device`, perms, Expo push token, local schedule helper, event-reminder scheduler
 - [x] App Store hardening: iOS `buildNumber`, `infoPlist` permission strings (camera, photo library, notifications), `ITSAppUsesNonExemptEncryption=false`, Android `versionCode` + permissions, `expo-image-picker` + `expo-notifications` plugins
+- [x] Supabase core tables: `events`, `rsvps`, `photos` with full RLS policies (public SELECT, owner INSERT/UPDATE/DELETE). `EventsProvider` now reads/writes Supabase as primary store with AsyncStorage cache fallback. Migration at `supabase/migrations/0003_core_tables.sql`.
