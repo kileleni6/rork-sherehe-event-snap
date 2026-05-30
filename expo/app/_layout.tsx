@@ -1,3 +1,6 @@
+// Must be imported first — patches AbortController before any library creates one
+import "@/lib/abort-polyfill";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -26,7 +29,8 @@ if (typeof globalThis !== "undefined") {
       msg === "Failed to fetch" ||
       msg === "Network request failed" ||
       msg === "AbortError" ||
-      msg.includes("AbortError")
+      msg.includes("AbortError") ||
+      msg === "signal is aborted without reason"
     ) {
       console.log("[app] suppressed unhandled rejection:", msg);
       return;
