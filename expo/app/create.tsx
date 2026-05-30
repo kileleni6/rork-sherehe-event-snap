@@ -21,7 +21,8 @@ import {
   X,
   Zap,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
+import { generateInvitationMessage } from "@/lib/ai";
 import {
   Alert,
   Platform,
@@ -548,39 +549,75 @@ export default function CreateEventScreen() {
     router.push(`/event/${ev.id}` as never);
   };
 
-  const generateCopy = () => {
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiRequestId = useRef(0);
+
+  /**
+   * Generate a fresh invitation message.
+   * Tries AI first (when the toolkit key is available), falls back to
+   * local template variants if the AI call fails or times out.
+   */
+  const generateCopy = async () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setMessage(generateCopyVariant(type, customLabel, copyIndex));
-    setCopyIndex((i) => i + 1);
+
+    setAiLoading(true);
+    const reqId = ++aiRequestId.current;
+
+    const aiResult = await generateInvitationMessage({
+      eventType: type,
+      customLabel,
+      hostName: hostName.trim() || "Your host",
+      eventName: name.trim() || "the celebration",
+      venue: venue.trim() || "an amazing venue",
+    });
+
+    // Only apply if this request is still the latest (prevent stale responses)
+    if (reqId !== aiRequestId.current) return;
+    setAiLoading(false);
+
+    if (aiResult) {
+      setMessage(aiResult);
+    } else {
+      // Fallback to local template variants
+      setMessage(generateCopyVariant(type, customLabel, copyIndex));
+      setCopyIndex((i) => i + 1);
+    }
   };
-  const rewriteCopy = () => {
+
+  /**
+   * Rewrite the current message.
+   * Tries AI first with the existing text as context, falls back to
+   * prepending a tonal opener if the AI call fails.
+   */
+  const rewriteCopy = async () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const base = message.trim();
     if (!base) {
       generateCopy();
       return;
     }
-    // Lightweight rewrite: cycles the user's draft through tonal openers based on event type.
-    const opener: Record<EventTypeId, string[]> = {
-      wedding: ["With love,", "Save the date —", "To our favorite people:"],
-      birthday: ["Birthday brief:", "Quick PSA:", "Heads up —"],
-      baby: ["With tiny joy,", "Save the date —", "Before the baby arrives:"],
-      graduation: ["It's official —", "Diploma incoming:", "Heads up —"],
-      vacation: ["Out-of-office vibes:", "Pack your bags —", "Quick reminder:"],
-      private: ["Just for you:", "An intimate note —", "Off the record:"],
-      brand: ["You're invited —", "Save the date —", "For our circle:"],
-      corporate: ["You're invited —", "Save the date —", "For our circle:"],
-      engagement: ["With love,", "We're engaged —", "Save the date —"],
-      concert: ["On the guest list:", "Loud & clear —", "Save the date —"],
-      festival: ["Open-air alert:", "Pack your dancing shoes —", "Save the date —"],
-      religious: ["With grateful hearts,", "Please join us —", "With blessings —"],
-      custom: ["Save the date —", "For you:", "Heads up —"],
-    };
-    const openers = opener[type] ?? opener.custom;
-    const o = openers[copyIndex % openers.length];
-    const stripped = base.replace(/^(With love,|Save the date —|To our favorite people:|Birthday brief:|Quick PSA:|Heads up —|With tiny joy,|Before the baby arrives:|It's official —|Diploma incoming:|Out-of-office vibes:|Pack your bags —|Quick reminder:|Just for you:|An intimate note —|Off the record:|You're invited —|For our circle:|For you:)\s*/i, "");
-    setMessage(`${o} ${stripped}`);
-    setCopyIndex((i) => i + 1);
+
+    setAiLoading(true);
+    const reqId = ++aiRequestId.current;
+
+    const aiResult = await generateInvitationMessage({
+      eventType: type,
+      customLabel,
+      hostName: hostName.trim() || "Your host",
+      eventName: name.trim() || "the celebration",
+      venue: venue.trim() || "an amazing venue",
+      existing: base,
+    });
+
+    if (reqId !== aiRequestId.current) return;
+    setAiLoading(false);
+
+    if (aiResult) {
+      setMessage(aiResult);
+    } else {
+      // Local fallback: prepend a fresh tonal opener
+      generateCopy();
+    }
   };
 
   const pickCustomCover = async () => {
@@ -875,14 +912,22 @@ export default function CreateEventScreen() {
                 <Text style={s.label}>Message to guests</Text>
                 <View style={{ flexDirection: "row", gap: 6 }}>
                   {message.trim().length > 0 ? (
-                    <Pressable onPress={rewriteCopy} style={s.aiBtn}>
-                      <RefreshCw color={C.pinkHi} size={13} />
-                      <Text style={s.aiBtnText}>Rewrite</Text>
+                    <Pressable onPress={rewriteCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
+                      {aiLoading ? (
+                        <RefreshCw color={C.mute} size={13} />
+                      ) : (
+                        <RefreshCw color={C.pinkHi} size={13} />
+                      )}
+                      <Text style={[s.aiBtnText, aiLoading && { color: C.mute }]}>{aiLoading ? "Writing…" : "Rewrite"}</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable onPress={generateCopy} style={s.aiBtn}>
-                    <Wand2 color={C.pinkHi} size={14} />
-                    <Text style={s.aiBtnText}>AI write</Text>
+                  <Pressable onPress={generateCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
+                    {aiLoading ? (
+                      <Sparkles color={C.mute} size={14} />
+                    ) : (
+                      <Wand2 color={C.pinkHi} size={14} />
+                    )}
+                    <Text style={[s.aiBtnText, aiLoading && { color: C.mute }]}>{aiLoading ? "Writing…" : "AI write"}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1482,6 +1527,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,45,122,0.3)",
   },
+  aiBtnDisabled: { opacity: 0.5, borderColor: "rgba(255,45,122,0.12)" },
   aiBtnText: { color: C.pinkHi, fontWeight: "700" as const, fontSize: 12 },
   presetChip: {
     flexDirection: "row",
