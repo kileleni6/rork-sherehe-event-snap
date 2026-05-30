@@ -9,12 +9,28 @@ import { Platform } from "react-native";
  * both in Expo Go (mock unlock) and in a dev/preview/production build (real
  * StoreKit / Play Billing flow), we lazy-require the SDK and fall back to a
  * mock implementation when the native module is absent.
+ *
+ * Three RevenueCat apps power this client:
+ *   - Test Store   → EXPO_PUBLIC_REVENUECAT_TEST_API_KEY  (Expo Go / web / __DEV__)
+ *   - iOS App Store → EXPO_PUBLIC_REVENUECAT_IOS_API_KEY   (production iOS)
+ *   - Google Play   → EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY (production Android)
  */
 
 export type PurchaseResult = { success: boolean; mocked: boolean; productId?: string; error?: string };
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
-const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_TEST_STORE ?? "";
+
+function getRCToken(): string {
+  // Expo Go and web previews always use the Test Store key
+  if (isExpoGo || __DEV__ || Platform.OS === "web") {
+    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? "";
+  }
+  return Platform.select({
+    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? "",
+    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? "",
+    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? "",
+  });
+}
 
 let configured = false;
 let cachedPurchases: typeof import("react-native-purchases").default | null = null;
@@ -41,12 +57,13 @@ export function isPurchasesAvailable(): boolean {
 export async function configurePurchases(userId?: string): Promise<void> {
   const Purchases = loadPurchases();
   if (!Purchases || configured) return;
-  if (!apiKey) {
-    console.log("[purchases] missing EXPO_PUBLIC_REVENUECAT_API_KEY_TEST_STORE");
+  const key = getRCToken();
+  if (!key) {
+    console.log("[purchases] missing RevenueCat API key");
     return;
   }
   try {
-    Purchases.configure({ apiKey, appUserID: userId });
+    Purchases.configure({ apiKey: key, appUserID: userId });
     configured = true;
     console.log("[purchases] configured");
   } catch (e) {
