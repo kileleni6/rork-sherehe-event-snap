@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
 /** Max seconds to wait for any Supabase request before giving up. */
-const FETCH_TIMEOUT_S = 12;
+const FETCH_TIMEOUT_S = 25;
 
 /**
  * Wraps the global fetch with a timeout AND converts network-level failures

@@ -28,6 +28,7 @@ if (typeof globalThis !== "undefined") {
     if (
       msg === "Failed to fetch" ||
       msg === "Network request failed" ||
+      msg === "Request timed out" ||
       msg === "AbortError" ||
       msg.includes("AbortError") ||
       msg === "signal is aborted without reason"
