@@ -13,6 +13,7 @@ import {
   LogOut,
   PauseCircle,
   RotateCcw,
+  FileText,
   Shield,
   Sparkles,
   Trash2,
@@ -106,10 +107,18 @@ export default function ProfileScreen() {
     );
   };
 
+  const PRIVACY_URL = "https://preview--sherehe-moments-capture.lovable.app/legal/privacy";
+  const TERMS_URL = "https://preview--sherehe-moments-capture.lovable.app/legal/terms";
+
   const handlePrivacy = () => {
-    Alert.alert(
-      "Privacy",
-      "All events are private by default. Guest lists, photos and RSVPs never leave your event."
+    Linking.openURL(PRIVACY_URL).catch(() =>
+      Alert.alert("Privacy", "Couldn't open the privacy policy. Visit " + PRIVACY_URL)
+    );
+  };
+
+  const handleTerms = () => {
+    Linking.openURL(TERMS_URL).catch(() =>
+      Alert.alert("Terms of Service", "Couldn't open the terms. Visit " + TERMS_URL)
     );
   };
 
@@ -307,8 +316,14 @@ export default function ProfileScreen() {
             <Row
               icon={<Shield color={C.text} size={18} />}
               title={t("profile_privacy")}
-              sub={t("profile_privacy_sub")}
+              sub="Privacy Policy"
               onPress={handlePrivacy}
+            />
+            <Row
+              icon={<FileText color={C.text} size={18} />}
+              title="Terms of Service"
+              sub="Read the terms"
+              onPress={handleTerms}
             />
             <Row
               icon={<HelpCircle color={C.text} size={18} />}
