@@ -3,6 +3,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
+/** Max seconds to wait for any Supabase request before giving up. */
+const FETCH_TIMEOUT_S = 12;
+
+/** Wraps the global fetch with a timeout so "Failed to fetch" doesn't hang forever. */
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_S * 1000);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
 import type { Event, Photo, Rsvp, ScheduleItem } from "@/types/event";
 import type {
   CameraStyleId,
@@ -37,6 +52,9 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === "web",
+  },
+  global: {
+    fetch: fetchWithTimeout,
   },
 });
 
@@ -181,42 +199,54 @@ function mapPhoto(row: PhotoRow): Photo {
 
 /** Fetch all events visible to the current user (their own + public). */
 export async function fetchAllEvents(): Promise<Event[]> {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .order("date", { ascending: true });
-  if (error) {
-    console.log("[supabase] fetchAllEvents failed", error.message);
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .order("date", { ascending: true });
+    if (error) {
+      console.log("[supabase] fetchAllEvents failed", error.message);
+      return [];
+    }
+    const events: Event[] = [];
+    for (const row of data as EventRow[]) {
+      const [rsvps, photos] = await Promise.all([
+        fetchRsvpsForEvent(row.id),
+        fetchPhotosForEvent(row.id),
+      ]);
+      events.push(mapEvent(row, rsvps, photos));
+    }
+    return events;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] fetchAllEvents network error", msg);
     return [];
   }
-  const events: Event[] = [];
-  for (const row of data as EventRow[]) {
-    const [rsvps, photos] = await Promise.all([
-      fetchRsvpsForEvent(row.id),
-      fetchPhotosForEvent(row.id),
-    ]);
-    events.push(mapEvent(row, rsvps, photos));
-  }
-  return events;
 }
 
 /** Fetch a single event by ID. */
 export async function fetchEventById(eventId: string): Promise<Event | null> {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", eventId)
-    .maybeSingle();
-  if (error || !data) {
-    if (error) console.log("[supabase] fetchEventById failed", error.message);
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", eventId)
+      .maybeSingle();
+    if (error || !data) {
+      if (error) console.log("[supabase] fetchEventById failed", error.message);
+      return null;
+    }
+    const row = data as EventRow;
+    const [rsvps, photos] = await Promise.all([
+      fetchRsvpsForEvent(row.id),
+      fetchPhotosForEvent(row.id),
+    ]);
+    return mapEvent(row, rsvps, photos);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] fetchEventById network error", msg);
     return null;
   }
-  const row = data as EventRow;
-  const [rsvps, photos] = await Promise.all([
-    fetchRsvpsForEvent(row.id),
-    fetchPhotosForEvent(row.id),
-  ]);
-  return mapEvent(row, rsvps, photos);
 }
 
 /**
@@ -226,48 +256,54 @@ export async function fetchEventById(eventId: string): Promise<Event | null> {
 export async function createSupabaseEvent(
   draft: Omit<Event, "id" | "rsvps" | "photos" | "invited" | "views">
 ): Promise<Event | null> {
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth.user?.id;
-  if (!userId) {
-    console.log("[supabase] createSupabaseEvent: not authenticated");
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth.user?.id;
+    if (!userId) {
+      console.log("[supabase] createSupabaseEvent: not authenticated");
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("events")
+      .insert({
+        user_id: userId,
+        name: draft.name,
+        type: draft.type,
+        custom_label: draft.customLabel ?? null,
+        time_of_day: draft.timeOfDay ?? null,
+        cover: draft.cover,
+        date: new Date(draft.date).toISOString(),
+        venue: draft.venue,
+        message: draft.message,
+        dress_code: draft.dressCode ?? null,
+        schedule: draft.schedule,
+        template: draft.template,
+        host_name: draft.hostName,
+        shots_per_guest: draft.shotsPerGuest,
+        reveal_at: new Date(draft.revealAt).toISOString(),
+        reveal_mode: draft.revealMode,
+        upload_permission: draft.uploadPermission ?? "all",
+        privacy: draft.privacy ?? "private",
+        passcode: draft.passcode ?? null,
+        visibility: draft.visibility ?? "all_after_reveal",
+        check_in_enabled: draft.checkInEnabled ?? false,
+        is_private: draft.isPrivate,
+        premium: draft.premium ?? false,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      console.log("[supabase] createSupabaseEvent failed", error?.message);
+      return null;
+    }
+    return mapEvent(data as EventRow, [], []);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] createSupabaseEvent network error", msg);
     return null;
   }
-
-  const { data, error } = await supabase
-    .from("events")
-    .insert({
-      user_id: userId,
-      name: draft.name,
-      type: draft.type,
-      custom_label: draft.customLabel ?? null,
-      time_of_day: draft.timeOfDay ?? null,
-      cover: draft.cover,
-      date: new Date(draft.date).toISOString(),
-      venue: draft.venue,
-      message: draft.message,
-      dress_code: draft.dressCode ?? null,
-      schedule: draft.schedule,
-      template: draft.template,
-      host_name: draft.hostName,
-      shots_per_guest: draft.shotsPerGuest,
-      reveal_at: new Date(draft.revealAt).toISOString(),
-      reveal_mode: draft.revealMode,
-      upload_permission: draft.uploadPermission ?? "all",
-      privacy: draft.privacy ?? "private",
-      passcode: draft.passcode ?? null,
-      visibility: draft.visibility ?? "all_after_reveal",
-      check_in_enabled: draft.checkInEnabled ?? false,
-      is_private: draft.isPrivate,
-      premium: draft.premium ?? false,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) {
-    console.log("[supabase] createSupabaseEvent failed", error?.message);
-    return null;
-  }
-  return mapEvent(data as EventRow, [], []);
 }
 
 /** Update an event (owner only — enforced by RLS). */
@@ -275,52 +311,64 @@ export async function updateSupabaseEvent(
   eventId: string,
   patch: Partial<Event>
 ): Promise<boolean> {
-  const dbPatch: Record<string, unknown> = {};
-  if (patch.name !== undefined) dbPatch.name = patch.name;
-  if (patch.type !== undefined) dbPatch.type = patch.type;
-  if (patch.customLabel !== undefined) dbPatch.custom_label = patch.customLabel || null;
-  if (patch.timeOfDay !== undefined) dbPatch.time_of_day = patch.timeOfDay || null;
-  if (patch.cover !== undefined) dbPatch.cover = patch.cover;
-  if (patch.date !== undefined) dbPatch.date = new Date(patch.date).toISOString();
-  if (patch.venue !== undefined) dbPatch.venue = patch.venue;
-  if (patch.message !== undefined) dbPatch.message = patch.message;
-  if (patch.dressCode !== undefined) dbPatch.dress_code = patch.dressCode || null;
-  if (patch.schedule !== undefined) dbPatch.schedule = patch.schedule;
-  if (patch.template !== undefined) dbPatch.template = patch.template;
-  if (patch.hostName !== undefined) dbPatch.host_name = patch.hostName;
-  if (patch.shotsPerGuest !== undefined) dbPatch.shots_per_guest = patch.shotsPerGuest;
-  if (patch.revealAt !== undefined) dbPatch.reveal_at = new Date(patch.revealAt).toISOString();
-  if (patch.revealMode !== undefined) dbPatch.reveal_mode = patch.revealMode;
-  if (patch.uploadPermission !== undefined) dbPatch.upload_permission = patch.uploadPermission;
-  if (patch.privacy !== undefined) dbPatch.privacy = patch.privacy;
-  if (patch.passcode !== undefined) dbPatch.passcode = patch.passcode || null;
-  if (patch.visibility !== undefined) dbPatch.visibility = patch.visibility;
-  if (patch.checkInEnabled !== undefined) dbPatch.check_in_enabled = patch.checkInEnabled;
-  if (patch.isPrivate !== undefined) dbPatch.is_private = patch.isPrivate;
-  if (patch.invited !== undefined) dbPatch.invited = patch.invited;
-  if (patch.views !== undefined) dbPatch.views = patch.views;
-  if (patch.premium !== undefined) dbPatch.premium = patch.premium;
+  try {
+    const dbPatch: Record<string, unknown> = {};
+    if (patch.name !== undefined) dbPatch.name = patch.name;
+    if (patch.type !== undefined) dbPatch.type = patch.type;
+    if (patch.customLabel !== undefined) dbPatch.custom_label = patch.customLabel || null;
+    if (patch.timeOfDay !== undefined) dbPatch.time_of_day = patch.timeOfDay || null;
+    if (patch.cover !== undefined) dbPatch.cover = patch.cover;
+    if (patch.date !== undefined) dbPatch.date = new Date(patch.date).toISOString();
+    if (patch.venue !== undefined) dbPatch.venue = patch.venue;
+    if (patch.message !== undefined) dbPatch.message = patch.message;
+    if (patch.dressCode !== undefined) dbPatch.dress_code = patch.dressCode || null;
+    if (patch.schedule !== undefined) dbPatch.schedule = patch.schedule;
+    if (patch.template !== undefined) dbPatch.template = patch.template;
+    if (patch.hostName !== undefined) dbPatch.host_name = patch.hostName;
+    if (patch.shotsPerGuest !== undefined) dbPatch.shots_per_guest = patch.shotsPerGuest;
+    if (patch.revealAt !== undefined) dbPatch.reveal_at = new Date(patch.revealAt).toISOString();
+    if (patch.revealMode !== undefined) dbPatch.reveal_mode = patch.revealMode;
+    if (patch.uploadPermission !== undefined) dbPatch.upload_permission = patch.uploadPermission;
+    if (patch.privacy !== undefined) dbPatch.privacy = patch.privacy;
+    if (patch.passcode !== undefined) dbPatch.passcode = patch.passcode || null;
+    if (patch.visibility !== undefined) dbPatch.visibility = patch.visibility;
+    if (patch.checkInEnabled !== undefined) dbPatch.check_in_enabled = patch.checkInEnabled;
+    if (patch.isPrivate !== undefined) dbPatch.is_private = patch.isPrivate;
+    if (patch.invited !== undefined) dbPatch.invited = patch.invited;
+    if (patch.views !== undefined) dbPatch.views = patch.views;
+    if (patch.premium !== undefined) dbPatch.premium = patch.premium;
 
-  const { error } = await supabase
-    .from("events")
-    .update(dbPatch)
-    .eq("id", eventId);
+    const { error } = await supabase
+      .from("events")
+      .update(dbPatch)
+      .eq("id", eventId);
 
-  if (error) {
-    console.log("[supabase] updateSupabaseEvent failed", error.message);
+    if (error) {
+      console.log("[supabase] updateSupabaseEvent failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] updateSupabaseEvent network error", msg);
     return false;
   }
-  return true;
 }
 
 /** Delete an event (owner only — enforced by RLS). Cascade deletes RSVPs + photos. */
 export async function deleteSupabaseEvent(eventId: string): Promise<boolean> {
-  const { error } = await supabase.from("events").delete().eq("id", eventId);
-  if (error) {
-    console.log("[supabase] deleteSupabaseEvent failed", error.message);
+  try {
+    const { error } = await supabase.from("events").delete().eq("id", eventId);
+    if (error) {
+      console.log("[supabase] deleteSupabaseEvent failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] deleteSupabaseEvent network error", msg);
     return false;
   }
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,16 +376,22 @@ export async function deleteSupabaseEvent(eventId: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 
 async function fetchRsvpsForEvent(eventId: string): Promise<Rsvp[]> {
-  const { data, error } = await supabase
-    .from("rsvps")
-    .select("*")
-    .eq("event_id", eventId)
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.log("[supabase] fetchRsvpsForEvent failed", error.message);
+  try {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.log("[supabase] fetchRsvpsForEvent failed", error.message);
+      return [];
+    }
+    return (data as RsvpRow[]).map(mapRsvp);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] fetchRsvpsForEvent network error", msg);
     return [];
   }
-  return (data as RsvpRow[]).map(mapRsvp);
 }
 
 /**
@@ -348,32 +402,38 @@ export async function createSupabaseRsvp(
   eventId: string,
   rsvp: Omit<Rsvp, "id" | "createdAt" | "passCode" | "checkedInAt" | "shotsUsed" | "rejectionReason">
 ): Promise<Rsvp | null> {
-  const passCode =
-    (rsvp.name.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "GUEST") +
-    String(Math.floor(Math.random() * 90) + 10);
+  try {
+    const passCode =
+      (rsvp.name.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "GUEST") +
+      String(Math.floor(Math.random() * 90) + 10);
 
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth.user?.id ?? null;
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth.user?.id ?? null;
 
-  const { data, error } = await supabase
-    .from("rsvps")
-    .insert({
-      event_id: eventId,
-      user_id: userId,
-      name: rsvp.name,
-      status: rsvp.status,
-      guests: rsvp.guests,
-      note: rsvp.note ?? null,
-      pass_code: passCode,
-    })
-    .select("*")
-    .single();
+    const { data, error } = await supabase
+      .from("rsvps")
+      .insert({
+        event_id: eventId,
+        user_id: userId,
+        name: rsvp.name,
+        status: rsvp.status,
+        guests: rsvp.guests,
+        note: rsvp.note ?? null,
+        pass_code: passCode,
+      })
+      .select("*")
+      .single();
 
-  if (error || !data) {
-    console.log("[supabase] createSupabaseRsvp failed", error?.message);
+    if (error || !data) {
+      console.log("[supabase] createSupabaseRsvp failed", error?.message);
+      return null;
+    }
+    return mapRsvp(data as RsvpRow);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] createSupabaseRsvp network error", msg);
     return null;
   }
-  return mapRsvp(data as RsvpRow);
 }
 
 /**
@@ -384,36 +444,48 @@ export async function updateSupabaseRsvp(
   rsvpId: string,
   patch: Partial<Pick<Rsvp, "checkedInAt" | "shotsUsed" | "rejectionReason" | "guests" | "status" | "note">>
 ): Promise<boolean> {
-  const dbPatch: Record<string, unknown> = {};
-  if (patch.checkedInAt !== undefined) {
-    dbPatch.checked_in_at = patch.checkedInAt ? new Date(patch.checkedInAt).toISOString() : null;
-  }
-  if (patch.shotsUsed !== undefined) dbPatch.shots_used = patch.shotsUsed;
-  if (patch.rejectionReason !== undefined) dbPatch.rejection_reason = patch.rejectionReason || null;
-  if (patch.guests !== undefined) dbPatch.guests = patch.guests;
-  if (patch.status !== undefined) dbPatch.status = patch.status;
-  if (patch.note !== undefined) dbPatch.note = patch.note || null;
+  try {
+    const dbPatch: Record<string, unknown> = {};
+    if (patch.checkedInAt !== undefined) {
+      dbPatch.checked_in_at = patch.checkedInAt ? new Date(patch.checkedInAt).toISOString() : null;
+    }
+    if (patch.shotsUsed !== undefined) dbPatch.shots_used = patch.shotsUsed;
+    if (patch.rejectionReason !== undefined) dbPatch.rejection_reason = patch.rejectionReason || null;
+    if (patch.guests !== undefined) dbPatch.guests = patch.guests;
+    if (patch.status !== undefined) dbPatch.status = patch.status;
+    if (patch.note !== undefined) dbPatch.note = patch.note || null;
 
-  const { error } = await supabase
-    .from("rsvps")
-    .update(dbPatch)
-    .eq("id", rsvpId);
+    const { error } = await supabase
+      .from("rsvps")
+      .update(dbPatch)
+      .eq("id", rsvpId);
 
-  if (error) {
-    console.log("[supabase] updateSupabaseRsvp failed", error.message);
+    if (error) {
+      console.log("[supabase] updateSupabaseRsvp failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] updateSupabaseRsvp network error", msg);
     return false;
   }
-  return true;
 }
 
 /** Delete an RSVP. */
 export async function deleteSupabaseRsvp(rsvpId: string): Promise<boolean> {
-  const { error } = await supabase.from("rsvps").delete().eq("id", rsvpId);
-  if (error) {
-    console.log("[supabase] deleteSupabaseRsvp failed", error.message);
+  try {
+    const { error } = await supabase.from("rsvps").delete().eq("id", rsvpId);
+    if (error) {
+      console.log("[supabase] deleteSupabaseRsvp failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] deleteSupabaseRsvp network error", msg);
     return false;
   }
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -421,16 +493,22 @@ export async function deleteSupabaseRsvp(rsvpId: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 
 async function fetchPhotosForEvent(eventId: string): Promise<Photo[]> {
-  const { data, error } = await supabase
-    .from("photos")
-    .select("*")
-    .eq("event_id", eventId)
-    .order("taken_at", { ascending: false });
-  if (error) {
-    console.log("[supabase] fetchPhotosForEvent failed", error.message);
+  try {
+    const { data, error } = await supabase
+      .from("photos")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("taken_at", { ascending: false });
+    if (error) {
+      console.log("[supabase] fetchPhotosForEvent failed", error.message);
+      return [];
+    }
+    return (data as PhotoRow[]).map(mapPhoto);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] fetchPhotosForEvent network error", msg);
     return [];
   }
-  return (data as PhotoRow[]).map(mapPhoto);
 }
 
 /** Add a photo record. */
@@ -438,38 +516,50 @@ export async function createSupabasePhoto(
   eventId: string,
   photo: Omit<Photo, "id" | "takenAt">
 ): Promise<Photo | null> {
-  const now = Date.now();
-  const { data, error } = await supabase
-    .from("photos")
-    .insert({
-      event_id: eventId,
-      uri: photo.uri,
-      guest_name: photo.guestName,
-      taken_at: new Date(now).toISOString(),
-      filter: photo.filter ?? null,
-      style: photo.style ?? null,
-      flagged: photo.flagged ?? false,
-      storage_path: photo.storagePath ?? null,
-      uploaded_at: photo.uploadedAt ? new Date(photo.uploadedAt).toISOString() : null,
-      expires_at: photo.expiresAt ? new Date(photo.expiresAt).toISOString() : null,
-      expired: photo.expired ?? false,
-    })
-    .select("*")
-    .single();
+  try {
+    const now = Date.now();
+    const { data, error } = await supabase
+      .from("photos")
+      .insert({
+        event_id: eventId,
+        uri: photo.uri,
+        guest_name: photo.guestName,
+        taken_at: new Date(now).toISOString(),
+        filter: photo.filter ?? null,
+        style: photo.style ?? null,
+        flagged: photo.flagged ?? false,
+        storage_path: photo.storagePath ?? null,
+        uploaded_at: photo.uploadedAt ? new Date(photo.uploadedAt).toISOString() : null,
+        expires_at: photo.expiresAt ? new Date(photo.expiresAt).toISOString() : null,
+        expired: photo.expired ?? false,
+      })
+      .select("*")
+      .single();
 
-  if (error || !data) {
-    console.log("[supabase] createSupabasePhoto failed", error?.message);
+    if (error || !data) {
+      console.log("[supabase] createSupabasePhoto failed", error?.message);
+      return null;
+    }
+    return mapPhoto(data as PhotoRow);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] createSupabasePhoto network error", msg);
     return null;
   }
-  return mapPhoto(data as PhotoRow);
 }
 
 /** Delete a photo record by ID. */
 export async function deleteSupabasePhoto(photoId: string): Promise<boolean> {
-  const { error } = await supabase.from("photos").delete().eq("id", photoId);
-  if (error) {
-    console.log("[supabase] deleteSupabasePhoto failed", error.message);
+  try {
+    const { error } = await supabase.from("photos").delete().eq("id", photoId);
+    if (error) {
+      console.log("[supabase] deleteSupabasePhoto failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] deleteSupabasePhoto network error", msg);
     return false;
   }
-  return true;
 }
