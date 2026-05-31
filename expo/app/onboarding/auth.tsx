@@ -65,7 +65,7 @@ export default function AuthScreen() {
   return (
     <OnboardShell
       step={8}
-      total={8}
+      total={9}
       kicker="ACCOUNT"
       title={t("sign_in")}
       subtitle="Sign in to save events across devices and keep your guest lists safe."

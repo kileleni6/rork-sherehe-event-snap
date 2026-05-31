@@ -51,12 +51,12 @@ export default function InterestsScreen() {
 
   const next = async () => {
     await update({ interests: picked ? [picked] : [] });
-    router.push("/onboarding/paywall" as never);
+    router.push("/onboarding/guests" as never);
   };
 
   const skip = async () => {
     await update({ interests: [] });
-    router.push("/onboarding/paywall" as never);
+    router.push("/onboarding/guests" as never);
   };
 
   const customLabel = picked.startsWith("custom:") ? picked.slice(7) : null;
@@ -64,7 +64,7 @@ export default function InterestsScreen() {
   return (
     <OnboardShell
       step={6}
-      total={8}
+      total={9}
       kicker="INTERESTS"
       title={t("interests_title")}
       subtitle={t("interests_sub")}

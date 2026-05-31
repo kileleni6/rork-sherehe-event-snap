@@ -34,7 +34,7 @@ export default function RoleScreen() {
   return (
     <OnboardShell
       step={3}
-      total={8}
+      total={9}
       kicker="ROLE"
       title={t("who_are_you")}
       subtitle="You're setting SHEREHE up as a host. Guests don't need an account — they join through your invite link."

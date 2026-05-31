@@ -12,11 +12,14 @@
  *
  * Why this model: invitation messages are short (50-150 words) and need
  * creative flair, not deep reasoning. nano delivers solid prose at the
- * lowest cost/lowest latency in the GPT-4 family. Passed over gpt-5-nano
- * because it's optimized for classification/instruction tasks, not
- * creative writing. o4-mini was rejected because reasoning models are
- * overkill for this use case and 3x more expensive.
+ * lowest cost/lowest latency in the GPT-4 family.
+ *
+ * Rate limiting: 15 requests per hour per device. Tracked via AsyncStorage
+ * using a sliding-window of timestamps. Excess requests return null silently
+ * so the caller falls back to template-based messages.
  */
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TOOLKIT_URL = process.env.EXPO_PUBLIC_TOOLKIT_URL ?? "";
 const SECRET_KEY = process.env.EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY ?? "";
@@ -24,6 +27,40 @@ const SECRET_KEY = process.env.EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY ?? "";
 const MODEL_ID = "openai/gpt-4.1-nano";
 const ENDPOINT = `${TOOLKIT_URL}/v2/vercel/v1/chat/completions`;
 const TIMEOUT_MS = 15_000;
+
+// Rate limit: max requests per hour
+const RATE_LIMIT_MAX = 15;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_STORAGE_KEY = "sherehe.ai_rate_limits.v1";
+
+/**
+ * Check and update rate limit. Returns true if the request is allowed,
+ * false if the rate limit has been exceeded.
+ */
+async function checkRateLimit(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(RATE_STORAGE_KEY);
+    const timestamps: number[] = raw ? (JSON.parse(raw) as number[]) : [];
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+    // Prune expired entries
+    const active = timestamps.filter((t) => t > windowStart);
+
+    if (active.length >= RATE_LIMIT_MAX) {
+      console.log(`[ai] Rate limit reached (${active.length}/${RATE_LIMIT_MAX} in last hour)`);
+      return false;
+    }
+
+    active.push(now);
+    await AsyncStorage.setItem(RATE_STORAGE_KEY, JSON.stringify(active));
+    return true;
+  } catch (e) {
+    // If storage fails, allow the request — fail open
+    console.log("[ai] Rate limit check failed, allowing request", e);
+    return true;
+  }
+}
 
 interface AiInvitationInput {
   /** Event type (wedding, birthday, baby, etc.) */
@@ -52,6 +89,10 @@ export async function generateInvitationMessage(
     console.log("[ai] Toolkit URL or secret key not configured");
     return null;
   }
+
+  // Enforce rate limit before making the API call
+  const allowed = await checkRateLimit();
+  if (!allowed) return null;
 
   const label = input.eventType === "custom" && input.customLabel
     ? input.customLabel

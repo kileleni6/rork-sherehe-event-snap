@@ -40,7 +40,7 @@ export default function NotificationsScreen() {
   return (
     <OnboardShell
       step={4}
-      total={8}
+      total={9}
       kicker="ALERTS"
       title={t("notif_title")}
       subtitle={t("notif_sub")}

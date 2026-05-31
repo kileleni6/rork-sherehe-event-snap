@@ -1,9 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { Check, Crown, HardDrive, Sparkles, Tag as TagIcon, Users } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Building2, Check, Crown, HardDrive, Mail, Sparkles, Tag as TagIcon, Users } from "lucide-react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Easing, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { OnboardShell } from "@/components/OnboardShell";
 import { PrimaryButton } from "@/components/ui";
@@ -24,7 +24,6 @@ interface Tier {
   storage: string;
   highlight?: boolean;
   free?: boolean;
-  contact?: boolean;
 }
 
 const TIERS: Tier[] = [
@@ -33,7 +32,7 @@ const TIERS: Tier[] = [
   { id: "premium", name: "Premium Event", blurb: "Up to 250 guests", price: "$89.99", per: "one-time", guests: "250 guests", storage: "75 GB" },
   { id: "large", name: "Large Event", blurb: "Up to 500 guests", price: "$149.99", per: "one-time", guests: "500 guests", storage: "150 GB" },
   { id: "enterprise", name: "Enterprise Event", blurb: "Up to 1,000 guests", price: "$299.99", per: "one-time", guests: "1,000 guests", storage: "500 GB" },
-  { id: "super", name: "Super Event", blurb: "Up to 2,000 guests", price: "$499.99+", per: "custom", guests: "2,000+ guests", storage: "Unlimited", contact: true },
+  { id: "super", name: "Super Event", blurb: "Up to 2,000 guests", price: "$499.99", per: "one-time", guests: "2,000 guests", storage: "Unlimited" },
 ];
 
 const PERKS = [
@@ -48,7 +47,16 @@ export default function OnboardingPaywallScreen() {
   const router = useRouter();
   const { t } = useOnboarding();
   const { setProfile, retentionDays } = useEvents();
-  const [tier, setTier] = useState<TierId>("celebration");
+  const { guestTier } = useLocalSearchParams<{ guestTier: string }>();
+
+  // Pre-select the tier based on guest count from onboarding, if available
+  const initialTier = useMemo<TierId>(() => {
+    if (guestTier === "enterprise_custom") return "super";
+    if (guestTier && TIERS.some((tr) => tr.id === guestTier)) return guestTier as TierId;
+    return "celebration";
+  }, [guestTier]);
+
+  const [tier, setTier] = useState<TierId>(initialTier);
 
   const shine = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -69,16 +77,21 @@ export default function OnboardingPaywallScreen() {
   const selected = TIERS.find((t) => t.id === tier);
   const subscribe = () => goAuth(!(selected?.free));
   const skip = () => goAuth(false);
-  const ctaTitle = selected?.contact
-    ? t("paywall_cta_contact", { name: selected.name })
-    : selected?.free
-      ? t("paywall_cta_start_free", { name: selected.name })
-      : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
+  const ctaTitle = selected?.free
+    ? t("paywall_cta_start_free", { name: selected.name })
+    : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });
+
+  const enterpriseCTA = () => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    Linking.openURL("mailto:events@sherehe.net?subject=Custom%20Enterprise%20Event%20Inquiry").catch(() => {
+      Alert.alert("Contact us", "Please email events@sherehe.net for custom enterprise event pricing.");
+    });
+  };
 
   return (
     <OnboardShell
-      step={7}
-      total={8}
+      step={8}
+      total={9}
       kicker="UNLOCK"
       title="Host like a star"
       subtitle="One payment per event. Pick your size — or start free and upgrade later."
@@ -153,7 +166,7 @@ export default function OnboardingPaywallScreen() {
       <View style={{ gap: 12, marginTop: 18 }}>
         {TIERS.map((tr) => {
           const active = tier === tr.id;
-          const per = tr.free ? t("paywall_free_forever") : tr.contact ? t("paywall_custom") : t("paywall_one_time");
+          const per = tr.free ? t("paywall_free_forever") : t("paywall_one_time");
           return (
             <Pressable key={tr.id} onPress={() => setTier(tr.id)} style={[styles.tier, active ? styles.tierActive : null]}>
               {tr.highlight ? (
@@ -183,6 +196,38 @@ export default function OnboardingPaywallScreen() {
             </Pressable>
           );
         })}
+
+        {/* ── Enterprise Section ── */}
+        <View style={styles.enterpriseDivider}>
+          <View style={styles.enterpriseLine} />
+          <Text style={styles.enterpriseLabel}>ENTERPRISE</Text>
+          <View style={styles.enterpriseLine} />
+        </View>
+
+        <Pressable onPress={enterpriseCTA} style={styles.enterpriseCard}>
+          <LinearGradient
+            colors={["rgba(244,201,123,0.12)", "rgba(244,201,123,0.04)"]}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={styles.enterpriseBadge}>
+            <Building2 color={C.gold} size={14} />
+            <Text style={styles.enterpriseBadgeText}>FOR LARGE EVENTS</Text>
+          </View>
+          <Text style={styles.enterpriseName}>Custom Enterprise Plan</Text>
+          <Text style={styles.enterpriseBlurb}>
+            For events with 2,000+ guests — dedicated support, scalable infrastructure, and tailored pricing.
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <View style={styles.enterpriseTag}><Text style={styles.enterpriseTagText}>2,000+ guests</Text></View>
+            <View style={styles.enterpriseTag}><Text style={styles.enterpriseTagText}>Unlimited storage</Text></View>
+            <View style={styles.enterpriseTag}><Text style={styles.enterpriseTagText}>Dedicated support</Text></View>
+            <View style={styles.enterpriseTag}><Text style={styles.enterpriseTagText}>Custom pricing</Text></View>
+          </View>
+          <View style={styles.enterpriseCTA}>
+            <Mail color={C.gold} size={16} />
+            <Text style={styles.enterpriseCTAText}>Contact Us for Pricing</Text>
+          </View>
+        </Pressable>
       </View>
 
       <View style={styles.perks}>
@@ -294,4 +339,44 @@ const styles = StyleSheet.create({
   howRowText: { color: C.text, fontSize: 12, lineHeight: 17, flex: 1, fontWeight: "500" as const },
   howFoot: { color: C.mute, fontSize: 11, lineHeight: 15, marginTop: 6 },
   skip: { color: C.subtext, fontSize: 13, fontWeight: "600" as const, textDecorationLine: "underline" },
+
+  // -- Enterprise section --
+  enterpriseDivider: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 20, marginBottom: 10 },
+  enterpriseLine: { flex: 1, height: 1, backgroundColor: "rgba(244,201,123,0.2)" },
+  enterpriseLabel: { color: C.gold, fontSize: 10, fontWeight: "800" as const, letterSpacing: 2 },
+  enterpriseCard: {
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(244,201,123,0.3)",
+    backgroundColor: "rgba(244,201,123,0.04)",
+    overflow: "hidden",
+    gap: 4,
+  },
+  enterpriseBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  enterpriseBadgeText: { color: C.gold, fontSize: 10, fontWeight: "800" as const, letterSpacing: 1.5 },
+  enterpriseName: { color: C.text, fontSize: 18, fontWeight: "800" as const, letterSpacing: -0.3 },
+  enterpriseBlurb: { color: "rgba(255,255,255,0.78)", fontSize: 12, lineHeight: 17 },
+  enterpriseTag: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: "rgba(244,201,123,0.1)",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(244,201,123,0.25)",
+  },
+  enterpriseTagText: { color: C.gold, fontSize: 10, fontWeight: "600" as const },
+  enterpriseCTA: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(244,201,123,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(244,201,123,0.3)",
+  },
+  enterpriseCTAText: { color: C.gold, fontSize: 13, fontWeight: "700" as const },
 });

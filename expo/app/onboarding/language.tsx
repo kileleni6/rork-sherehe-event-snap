@@ -37,7 +37,7 @@ export default function LanguageScreen() {
   return (
     <OnboardShell
       step={2}
-      total={8}
+      total={9}
       kicker="LANGUAGE"
       title={t("choose_language")}
       subtitle={t("language_sub")}

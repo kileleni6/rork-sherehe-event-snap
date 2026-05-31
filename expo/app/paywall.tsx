@@ -103,8 +103,8 @@ export default function PaywallScreen() {
 
   const enterpriseCTA = () => {
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    Linking.openURL("mailto:events@sharehe.net?subject=Custom%20Enterprise%20Event%20Inquiry").catch(() => {
-      Alert.alert("Contact us", "Please email events@sharehe.net for custom enterprise event pricing.");
+    Linking.openURL("mailto:events@sherehe.net?subject=Custom%20Enterprise%20Event%20Inquiry").catch(() => {
+      Alert.alert("Contact us", "Please email events@sherehe.net for custom enterprise event pricing.");
     });
   };
 
