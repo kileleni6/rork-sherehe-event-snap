@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Bell, CalendarClock, Lock, MailCheck } from "lucide-react-native";
 import React from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, StyleSheet, Text, View } from "react-native";
 
 import { OnboardShell } from "@/components/OnboardShell";
 import { GhostButton, PrimaryButton } from "@/components/ui";

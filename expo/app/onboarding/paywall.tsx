@@ -46,7 +46,7 @@ const PERKS = [
 
 export default function OnboardingPaywallScreen() {
   const router = useRouter();
-  const { update, t } = useOnboarding();
+  const { t } = useOnboarding();
   const { setProfile, retentionDays } = useEvents();
   const [tier, setTier] = useState<TierId>("celebration");
 

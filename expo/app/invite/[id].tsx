@@ -12,6 +12,7 @@ import { InvitationCard } from "@/components/InvitationCard";
 import { Card, Chip, GhostButton, PrimaryButton, SectionTitle } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { addToCalendar } from "@/lib/calendar";
+import { sendPassConfirmationSms } from "@/lib/sms";
 import { getTemplate, useEvents } from "@/providers/EventsProvider";
 import type { RsvpStatus } from "@/types/event";
 
@@ -51,6 +52,15 @@ export default function InviteScreen() {
       note: note || undefined,
       phone: phone || undefined,
     });
+    if (phone.trim()) {
+      sendPassConfirmationSms({
+        guestPhone: phone.trim(),
+        guestName: name || "Guest",
+        eventName: event.name,
+        passCode: r.passCode,
+        inviteUrl: `${url}?rsvp=${r.id}`,
+      }).catch((e) => console.log("[invite] pass SMS failed", e));
+    }
     setLastRsvpId(r.id);
     setSubmitted(true);
   };

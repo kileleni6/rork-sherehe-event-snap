@@ -14,7 +14,7 @@ const NativeAbortController: typeof AbortController =
   (globalThis as Record<string, unknown>).AbortController as typeof AbortController;
 
 if (NativeAbortController) {
-  const PATCHED = Symbol.for("__sherehe_abort_patched__");
+  const PATCHED = "__sherehe_abort_patched__";
 
   if (!(globalThis as Record<string, unknown>)[PATCHED]) {
     (globalThis as Record<string, unknown>)[PATCHED] = true;

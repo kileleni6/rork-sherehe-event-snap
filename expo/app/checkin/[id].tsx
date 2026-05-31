@@ -78,16 +78,9 @@ export default function CheckInScreen() {
   }, [manualMode, pulse]);
 
   const cameraSupported = Platform.OS !== "web";
-
-  if (!event) {
-    return (
-      <View style={s.container}>
-        <Text style={{ color: C.text, padding: 30 }}>{t("checkin_event_not_found")}</Text>
-      </View>
-    );
-  }
-
-  const attending = event.rsvps.filter((r) => r.status !== "no");
+  const eventId = event?.id ?? "";
+  const rsvps = useMemo(() => event?.rsvps ?? [], [event?.rsvps]);
+  const attending = rsvps.filter((r) => r.status !== "no");
   const rejected = attending.filter((r) => typeof r.rejectionReason === "string");
   const active = attending.filter((r) => typeof r.rejectionReason !== "string");
   const arrived = active.filter((r) => typeof r.checkedInAt === "number");
@@ -104,38 +97,42 @@ export default function CheckInScreen() {
 
   const checkIn = useCallback(
     async (rsvpId: string, name: string) => {
+      if (!eventId) return;
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      await checkInGuest(event.id, rsvpId, Date.now());
+      await checkInGuest(eventId, rsvpId, Date.now());
       setLastChecked({ name, at: Date.now() });
       setTimeout(() => setLastChecked(null), 2500);
     },
-    [checkInGuest, event.id]
+    [checkInGuest, eventId]
   );
 
   const reject = async (rsvpId: string) => {
+    if (!eventId) return;
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-    await rejectGuest(event.id, rsvpId, rejectionNote.trim() || null);
+    await rejectGuest(eventId, rsvpId, rejectionNote.trim() || null);
     setRejectionNote("");
     setRejectingId(null);
   };
 
   const undoReject = async (rsvpId: string) => {
+    if (!eventId) return;
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    await rejectGuest(event.id, rsvpId, null);
+    await rejectGuest(eventId, rsvpId, null);
   };
 
   const undo = async (rsvpId: string) => {
+    if (!eventId) return;
     if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-    await checkInGuest(event.id, rsvpId, 0);
+    await checkInGuest(eventId, rsvpId, 0);
   };
 
   const handleResolvedCode = useCallback(
     async (raw: string) => {
       const code = extractCode(raw).toUpperCase();
       if (!code) return;
-      const match = event.rsvps.find((r) => r.passCode.toUpperCase() === code);
+      const match = rsvps.find((r) => r.passCode.toUpperCase() === code);
       if (!match) {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         Alert.alert(t("checkin_pass_not_found_title"), t("checkin_pass_not_found_body", { code }));
@@ -151,7 +148,7 @@ export default function CheckInScreen() {
       }
       await checkIn(match.id, match.name);
     },
-    [event.rsvps, checkIn, t, formatTime]
+    [rsvps, checkIn, t, formatTime]
   );
 
   const onBarcode = useCallback(
@@ -177,6 +174,14 @@ export default function CheckInScreen() {
   };
 
   const arrivedPct = expectedCount > 0 ? (arrived.length / expectedCount) * 100 : 0;
+
+  if (!event) {
+    return (
+      <View style={s.container}>
+        <Text style={{ color: C.text, padding: 30 }}>{t("checkin_event_not_found")}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>

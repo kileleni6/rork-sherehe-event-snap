@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Crown,
   Plus,
-  ScanLine,
   Send,
   Sparkles,
   Ticket,

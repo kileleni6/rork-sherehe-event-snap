@@ -7,7 +7,6 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Platform } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EventsProvider } from "@/providers/EventsProvider";
