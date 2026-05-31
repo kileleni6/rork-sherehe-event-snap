@@ -9,6 +9,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/components/ui";
 import { EventsProvider } from "@/providers/EventsProvider";
 import { OnboardingProvider, useOnboarding } from "@/providers/OnboardingProvider";
 
@@ -113,15 +114,15 @@ function RootLayoutNav() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
-      <Stack.Screen name="create" options={{ presentation: "modal", title: "New Event" }} />
-      <Stack.Screen name="event/[id]" options={{ headerTransparent: true, headerTitle: "" }} />
-      <Stack.Screen name="invite/[id]" options={{ headerTransparent: true, headerTitle: "" }} />
-      <Stack.Screen name="camera/[id]" options={{ headerShown: false, presentation: "fullScreenModal" }} />
-      <Stack.Screen name="gallery/[id]" options={{ headerTransparent: true, headerTitle: "" }} />
-      <Stack.Screen name="pass/[id]" options={{ headerShown: false, presentation: "modal" }} />
-      <Stack.Screen name="checkin/[id]" options={{ headerShown: false, presentation: "modal" }} />
-      <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="plan-detail" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="create" options={{ presentation: "modal", title: "New Event", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="event/[id]" options={{ headerTransparent: true, headerTitle: "", animation: "fade_from_bottom" }} />
+      <Stack.Screen name="invite/[id]" options={{ headerTransparent: true, headerTitle: "", animation: "fade_from_bottom" }} />
+      <Stack.Screen name="camera/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
+      <Stack.Screen name="gallery/[id]" options={{ headerTransparent: true, headerTitle: "", animation: "fade_from_bottom" }} />
+      <Stack.Screen name="pass/[id]" options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="checkin/[id]" options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="plan-detail" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
     </Stack>
   );
 }
@@ -138,9 +139,11 @@ export default function RootLayout() {
           <EventsProvider>
             <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0B" }}>
               <StatusBar style="light" />
-              <OnboardingGate>
-                <RootLayoutNav />
-              </OnboardingGate>
+              <ToastProvider>
+                <OnboardingGate>
+                  <RootLayoutNav />
+                </OnboardingGate>
+              </ToastProvider>
             </GestureHandlerRootView>
           </EventsProvider>
         </OnboardingProvider>

@@ -35,7 +35,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Card, GhostButton, PrimaryButton, Tag } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import {
+  Card,
+  GhostButton,
+  PrimaryButton,
+  Tag,
+} from "@/components/ui";
 import { C } from "@/constants/colors";
 import { LANGUAGES, type LangCode } from "@/lib/i18n";
 import { useEvents } from "@/providers/EventsProvider";
@@ -49,15 +55,21 @@ interface RowProps {
   onPress?: () => void;
 }
 function Row({ icon, title, sub, trailing, onPress }: RowProps) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}>
+  const content = (
+    <>
       <View style={styles.rowIcon}>{icon}</View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle}>{title}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
-      {trailing ?? <ChevronRight color={C.mute} size={18} />}
-    </Pressable>
+      {trailing ?? (onPress ? <ChevronRight color={C.mute} size={18} /> : null)}
+    </>
+  );
+  if (!onPress) return <View style={styles.row}>{content}</View>;
+  return (
+    <PressableScale onPress={onPress} haptic="selection" pressedScale={0.99} style={styles.row}>
+      {content}
+    </PressableScale>
   );
 }
 
@@ -269,9 +281,11 @@ export default function ProfileScreen() {
           </View>
 
           {!profile.premium ? (
-            <Pressable
+            <PressableScale
               onPress={() => router.push("/paywall")}
-              style={({ pressed }) => [styles.upgrade, { opacity: pressed ? 0.92 : 1 }]}
+              haptic="light"
+              pressedScale={0.99}
+              style={styles.upgrade}
             >
               <LinearGradient
                 colors={["#3D0A24", "#8B0030", "#FF2D7A"]}
@@ -285,7 +299,7 @@ export default function ProfileScreen() {
                 <Text style={styles.upgradeSub}>{t("profile_go_pro_sub")}</Text>
               </View>
               <ChevronRight color={C.text} size={22} />
-            </Pressable>
+            </PressableScale>
           ) : null}
 
           <Card style={{ gap: 4, padding: 6 }}>

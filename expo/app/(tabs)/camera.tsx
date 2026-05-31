@@ -1,18 +1,27 @@
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Camera as CameraIcon, ChevronRight, Plus } from "lucide-react-native";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PrimaryButton } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import {
+  EmptyState,
+  EventRowSkeleton,
+  FadeInView,
+  PrimaryButton,
+  ShimmerImage,
+} from "@/components/ui";
 import { C } from "@/constants/colors";
+import { T } from "@/constants/typography";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function CameraTabScreen() {
-  const { upcoming } = useEvents();
+  const { upcoming, loading } = useEvents();
   const router = useRouter();
+  const { t } = useOnboarding();
 
   return (
     <View style={styles.container}>
@@ -22,52 +31,70 @@ export default function CameraTabScreen() {
       />
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.kicker}>DISPOSABLE</Text>
-          <Text style={styles.title}>Pick an event{"\n"}to capture</Text>
-          <Text style={styles.sub}>
-            Each guest has a limited roll. Photos lock until the host opens the gallery.
-          </Text>
+          <FadeInView>
+            <Text style={styles.kicker}>{t("tab_camera").toUpperCase()}</Text>
+            <Text style={styles.title}>{t("home_open_camera")}</Text>
+            <Text style={styles.sub}>{t("home_open_camera_sub")}</Text>
+          </FadeInView>
 
-          <View style={{ gap: 14, marginTop: 18 }}>
-            {upcoming.map((e) => {
-              const shotsUsed = e.photos.length;
-              return (
-                <Pressable
-                  key={e.id}
-                  onPress={() => router.push(`/camera/${e.id}` as never)}
-                  style={({ pressed }) => [styles.card, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
-                >
-                  <Image source={{ uri: e.cover }} style={styles.cardImg} contentFit="cover" />
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.85)"]}
-                    style={StyleSheet.absoluteFillObject as never}
-                  />
-                  <View style={styles.cardBody}>
-                    <View style={styles.filmStrip}>
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <View key={i} style={styles.filmHole} />
-                      ))}
-                    </View>
-                    <Text style={styles.cardTitle}>{e.name}</Text>
-                    <View style={styles.cardMeta}>
-                      <CameraIcon color={C.gold} size={14} />
-                      <Text style={styles.cardMetaText}>
-                        {shotsUsed}/{e.shotsPerGuest} shots used
-                      </Text>
-                      <View style={styles.dot} />
-                      <Text style={styles.cardMetaText}>{e.venue}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.openBtn}>
-                    <ChevronRight color={C.text} size={20} />
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+          {loading ? (
+            <View style={{ gap: 14, marginTop: 18 }}>
+              <EventRowSkeleton />
+              <EventRowSkeleton />
+            </View>
+          ) : upcoming.length === 0 ? (
+            <EmptyState
+              icon={CameraIcon}
+              title={t("home_empty_title")}
+              subtitle={t("home_empty_sub")}
+              action={{ label: t("home_create_event"), onPress: () => router.push("/create"), icon: Plus }}
+              style={{ marginTop: 24 }}
+            />
+          ) : (
+            <View style={{ gap: 14, marginTop: 18 }}>
+              {upcoming.map((e, i) => {
+                const shotsUsed = e.photos.length;
+                return (
+                  <FadeInView key={e.id} delay={i * 50}>
+                    <PressableScale
+                      onPress={() => router.push(`/camera/${e.id}` as never)}
+                      haptic="light"
+                      pressedScale={0.99}
+                      style={styles.card}
+                    >
+                      <ShimmerImage uri={e.cover} style={styles.cardImg} borderRadius={0} />
+                      <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.85)"]}
+                        style={StyleSheet.absoluteFillObject as never}
+                      />
+                      <View style={styles.cardBody}>
+                        <View style={styles.filmStrip}>
+                          {Array.from({ length: 8 }).map((_, j) => (
+                            <View key={j} style={styles.filmHole} />
+                          ))}
+                        </View>
+                        <Text style={styles.cardTitle}>{e.name}</Text>
+                        <View style={styles.cardMeta}>
+                          <CameraIcon color={C.gold} size={14} />
+                          <Text style={styles.cardMetaText}>
+                            {t("home_photos", { n: shotsUsed })}/{e.shotsPerGuest}
+                          </Text>
+                          <View style={styles.dot} />
+                          <Text style={styles.cardMetaText}>{e.venue}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.openBtn}>
+                        <ChevronRight color={C.text} size={20} />
+                      </View>
+                    </PressableScale>
+                  </FadeInView>
+                );
+              })}
+            </View>
+          )}
 
           <PrimaryButton
-            title="New event"
+            title={t("home_new_event")}
             icon={Plus}
             onPress={() => router.push("/create")}
             style={{ marginTop: 16 }}
@@ -82,9 +109,9 @@ export default function CameraTabScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
-  kicker: { color: C.pinkHi, letterSpacing: 3, fontWeight: "800" as const, fontSize: 11 },
-  title: { color: C.text, fontSize: 34, fontWeight: "800" as const, letterSpacing: -0.6, marginTop: 6 },
-  sub: { color: C.subtext, fontSize: 14, marginTop: 8, lineHeight: 20 },
+  kicker: { ...T.kicker },
+  title: { ...T.screenTitle, marginTop: 6 },
+  sub: { ...T.body, marginTop: 8 },
   card: {
     height: 200,
     borderRadius: 24,

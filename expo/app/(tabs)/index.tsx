@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
@@ -15,10 +14,23 @@ import {
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Card, Chip, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
+import { IconButton } from "@/components/pressable/IconButton";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import {
+  Card,
+  Chip,
+  EmptyState,
+  EventRowSkeleton,
+  FadeInView,
+  HeroSkeleton,
+  PrimaryButton,
+  SectionTitle,
+  ShimmerImage,
+  Tag,
+} from "@/components/ui";
 import { C } from "@/constants/colors";
 import { EVENT_TYPES } from "@/constants/templates";
 import { rsvpStats, useEvents } from "@/providers/EventsProvider";
@@ -40,9 +52,9 @@ function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
   const stats = rsvpStats(event.rsvps);
   const { t } = useOnboarding();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}>
+    <PressableScale onPress={onPress} haptic="selection" pressedScale={0.99} style={styles.row}>
       <View style={styles.rowImg}>
-        <Image source={{ uri: event.cover }} style={styles.rowImgInner} contentFit="cover" />
+        <ShimmerImage uri={event.cover} style={styles.rowImgInner} borderRadius={16} />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.rowImgOverlay} />
         <View style={styles.rowImgBadge}>
           <Text style={styles.rowImgBadgeText}>{countdown(event.date, t)}</Text>
@@ -68,7 +80,7 @@ function EventRow({ event, onPress }: { event: Event; onPress: () => void }) {
         </View>
       </View>
       <ChevronRight color={C.mute} size={20} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -76,7 +88,7 @@ const HOW_IT_WORKS_KEY = "sherehe.how_dismissed.v1";
 
 export default function EventsScreen() {
   const router = useRouter();
-  const { upcoming, profile } = useEvents();
+  const { upcoming, profile, loading } = useEvents();
   const { t } = useOnboarding();
   const [showHow, setShowHow] = useState<boolean>(true);
 
@@ -108,28 +120,27 @@ export default function EventsScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View>
+            <FadeInView>
               <Text style={styles.hello}>{t("home_hello", { name: profile.name })}</Text>
               <Text style={styles.title}>{t("home_title")}</Text>
-            </View>
-            <Pressable
+            </FadeInView>
+            <IconButton
+              icon={Crown}
               onPress={() => router.push("/paywall")}
-              style={({ pressed }) => [styles.crown, { opacity: pressed ? 0.8 : 1 }]}
-            >
-              <Crown color={profile.premium ? C.gold : C.subtext} size={18} />
-            </Pressable>
+              color={profile.premium ? C.gold : C.subtext}
+              haptic="light"
+            />
           </View>
 
           {showHow ? (
+            <FadeInView delay={60}>
             <View style={styles.howCard}>
               <View style={styles.howHeader}>
                 <View style={styles.howKickerWrap}>
                   <Sparkles color={C.pinkHi} size={13} />
                   <Text style={styles.howKicker}>{t("home_how_kicker")}</Text>
                 </View>
-                <Pressable onPress={dismissHow} hitSlop={8} style={styles.howClose}>
-                  <X color={C.subtext} size={14} />
-                </Pressable>
+                <IconButton icon={X} onPress={dismissHow} iconSize={14} size={28} color={C.subtext} haptic="light" />
               </View>
               <View style={styles.howStep}>
                 <View style={styles.howNum}><Send color={C.pinkHi} size={13} /></View>
@@ -153,14 +164,25 @@ export default function EventsScreen() {
                 </View>
               </View>
             </View>
+            </FadeInView>
           ) : null}
 
-          {hero ? (
-            <Pressable
+          {loading ? (
+            <FadeInView>
+              <HeroSkeleton />
+              <View style={{ gap: 12, marginTop: 18 }}>
+                <EventRowSkeleton />
+                <EventRowSkeleton />
+              </View>
+            </FadeInView>
+          ) : hero ? (
+            <PressableScale
               onPress={() => router.push(`/event/${hero.id}` as never)}
-              style={({ pressed }) => [styles.heroWrap, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
+              haptic="light"
+              pressedScale={0.99}
+              style={styles.heroWrap}
             >
-              <Image source={{ uri: hero.cover }} style={styles.heroImg} contentFit="cover" />
+              <ShimmerImage uri={hero.cover} style={styles.heroImg} borderRadius={28} />
               <LinearGradient
                 colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.95)"]}
                 style={styles.heroOverlay}
@@ -179,13 +201,16 @@ export default function EventsScreen() {
                   />
                 </View>
               </View>
-            </Pressable>
+            </PressableScale>
           ) : null}
 
+          {!loading ? (
           <View style={styles.quickGrid}>
-            <Pressable
+            <PressableScale
               onPress={() => router.push("/create")}
-              style={({ pressed }) => [styles.quick, { opacity: pressed ? 0.85 : 1 }]}
+              haptic="light"
+              pressedScale={0.98}
+              style={styles.quick}
             >
               <LinearGradient
                 colors={[C.pinkHi, C.pink, C.pinkDeep]}
@@ -197,18 +222,21 @@ export default function EventsScreen() {
               </LinearGradient>
               <Text style={styles.quickTitle}>{t("home_create_event")}</Text>
               <Text style={styles.quickSub}>{t("home_create_event_sub")}</Text>
-            </Pressable>
-            <Pressable
+            </PressableScale>
+            <PressableScale
               onPress={() => router.push("/camera" as never)}
-              style={({ pressed }) => [styles.quick, { opacity: pressed ? 0.85 : 1 }]}
+              haptic="selection"
+              pressedScale={0.98}
+              style={styles.quick}
             >
               <View style={[styles.quickIcon, { backgroundColor: C.cardHi }]}>
                 <CameraIcon color={C.gold} size={22} />
               </View>
               <Text style={styles.quickTitle}>{t("home_open_camera")}</Text>
               <Text style={styles.quickSub}>{t("home_open_camera_sub")}</Text>
-            </Pressable>
+            </PressableScale>
           </View>
+          ) : null}
 
           <View style={styles.sectionRow}>
             <SectionTitle>{t("home_browse_types")}</SectionTitle>
@@ -227,29 +255,36 @@ export default function EventsScreen() {
 
           <View style={styles.sectionRow}>
             <SectionTitle>{t("home_upcoming")}</SectionTitle>
-            <Pressable>
+            <PressableScale haptic="selection" pressedScale={0.96}>
               <Text style={styles.seeAll}>{t("home_see_all")}</Text>
-            </Pressable>
+            </PressableScale>
           </View>
 
-          {rest.length === 0 ? (
-            <Card style={{ alignItems: "center", gap: 8, paddingVertical: 28 }}>
-              <Sparkles color={C.pink} size={26} />
-              <Text style={styles.emptyTitle}>{t("home_empty_title")}</Text>
-              <Text style={styles.emptySub}>{t("home_empty_sub")}</Text>
+          {rest.length === 0 && !loading ? (
+            <Card>
+              <EmptyState
+                icon={Sparkles}
+                title={t("home_empty_title")}
+                subtitle={t("home_empty_sub")}
+                action={{ label: t("home_create_event"), onPress: () => router.push("/create"), icon: Plus }}
+              />
             </Card>
           ) : (
             <View style={{ gap: 12 }}>
-              {rest.map((e) => (
-                <EventRow key={e.id} event={e} onPress={() => router.push(`/event/${e.id}` as never)} />
+              {rest.map((e, i) => (
+                <FadeInView key={e.id} delay={i * 40}>
+                  <EventRow event={e} onPress={() => router.push(`/event/${e.id}` as never)} />
+                </FadeInView>
               ))}
             </View>
           )}
 
           {!profile.premium ? (
-            <Pressable
+            <PressableScale
               onPress={() => router.push("/paywall")}
-              style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
+              haptic="light"
+              pressedScale={0.99}
+              style={styles.proCard}
             >
               <LinearGradient
                 colors={["#1A0410", "#3D0A24", "#8B0030"]}
@@ -266,7 +301,7 @@ export default function EventsScreen() {
                 <Text style={styles.proSub}>{t("home_pro_sub")}</Text>
               </View>
               <ChevronRight color={C.text} size={20} />
-            </Pressable>
+            </PressableScale>
           ) : null}
 
           <View style={{ height: 100 }} />

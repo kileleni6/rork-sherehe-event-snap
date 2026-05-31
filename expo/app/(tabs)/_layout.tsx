@@ -5,12 +5,16 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { C } from "@/constants/colors";
+import { triggerHaptic } from "@/lib/haptics";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function TabLayout() {
   const { t } = useOnboarding();
   return (
     <Tabs
+      screenListeners={{
+        tabPress: () => triggerHaptic("selection"),
+      }}
       screenOptions={{
         tabBarActiveTintColor: C.pink,
         tabBarInactiveTintColor: C.mute,
@@ -20,7 +24,7 @@ export default function TabLayout() {
         tabBarStyle: {
           position: "absolute",
           borderTopWidth: 0,
-          backgroundColor: Platform.OS === "ios" ? "transparent" : "#0A0A0B",
+          backgroundColor: Platform.OS === "ios" ? "transparent" : C.bg,
           elevation: 0,
           height: 84,
           paddingBottom: 24,
@@ -36,7 +40,7 @@ export default function TabLayout() {
               <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(10,10,11,0.55)" }]} />
             </BlurView>
           ) : (
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#0A0A0B", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hair }]} />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: C.bg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hair }]} />
           ),
       }}
     >

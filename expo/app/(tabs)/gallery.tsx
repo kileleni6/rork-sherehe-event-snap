@@ -1,23 +1,23 @@
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Images, Lock, Unlock } from "lucide-react-native";
+import { Images, Lock, Plus, Unlock } from "lucide-react-native";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { PressableScale } from "@/components/pressable/PressableScale";
+import { EmptyState, FadeInView, ShimmerImage } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { T } from "@/constants/typography";
 import { useEvents } from "@/providers/EventsProvider";
+import { useOnboarding } from "@/providers/OnboardingProvider";
 import type { Event } from "@/types/event";
 
 function GalleryTile({ event, onPress }: { event: Event; onPress: () => void }) {
   const unlocked = event.revealAt <= Date.now();
   const preview = event.photos.slice(0, 4);
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.tile, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
-    >
+    <PressableScale onPress={onPress} haptic="selection" pressedScale={0.99} style={styles.tile}>
       <View style={styles.mosaic}>
         {preview.length === 0 ? (
           <View style={styles.mosaicEmpty}>
@@ -26,7 +26,7 @@ function GalleryTile({ event, onPress }: { event: Event; onPress: () => void }) 
         ) : (
           preview.map((p, i) => (
             <View key={p.id} style={[styles.mosaicCell, mosaicLayout(i, preview.length)]}>
-              <Image source={{ uri: p.uri }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              <ShimmerImage uri={p.uri} style={{ width: "100%", height: "100%" }} borderRadius={0} />
             </View>
           ))
         )}
@@ -43,17 +43,13 @@ function GalleryTile({ event, onPress }: { event: Event; onPress: () => void }) 
           {event.name}
         </Text>
         <View style={styles.tileMeta}>
-          {unlocked ? (
-            <Unlock color={C.success} size={12} />
-          ) : (
-            <Lock color={C.subtext} size={12} />
-          )}
+          {unlocked ? <Unlock color={C.success} size={12} /> : <Lock color={C.subtext} size={12} />}
           <Text style={styles.tileMetaText}>
             {event.photos.length} photos · {unlocked ? "Open" : "Locked"}
           </Text>
         </View>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -65,21 +61,43 @@ function mosaicLayout(i: number, total: number) {
 }
 
 export default function GalleryTabScreen() {
-  const { upcoming } = useEvents();
+  const { upcoming, loading } = useEvents();
   const router = useRouter();
+  const { t } = useOnboarding();
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.kicker}>SHARED MEMORIES</Text>
-          <Text style={styles.title}>Galleries</Text>
-          <Text style={styles.sub}>Locked until reveal. Then everyone sees the night, together.</Text>
+          <FadeInView>
+            <Text style={styles.kicker}>{t("tab_gallery").toUpperCase()}</Text>
+            <Text style={styles.title}>{t("tab_gallery")}</Text>
+            <Text style={styles.sub}>{t("home_open_camera_sub")}</Text>
+          </FadeInView>
 
-          <View style={styles.grid}>
-            {upcoming.map((e) => (
-              <GalleryTile key={e.id} event={e} onPress={() => router.push(`/gallery/${e.id}` as never)} />
-            ))}
-          </View>
+          {loading ? (
+            <View style={{ marginTop: 18, gap: 14 }}>
+              {[0, 1].map((i) => (
+                <View key={i} style={[styles.tile, { height: 260, backgroundColor: C.cardHi }]} />
+              ))}
+            </View>
+          ) : upcoming.length === 0 ? (
+            <EmptyState
+              icon={Images}
+              title={t("home_empty_title")}
+              subtitle={t("home_empty_sub")}
+              action={{ label: t("home_create_event"), onPress: () => router.push("/create"), icon: Plus }}
+              style={{ marginTop: 24 }}
+            />
+          ) : (
+            <View style={styles.grid}>
+              {upcoming.map((e, i) => (
+                <FadeInView key={e.id} delay={i * 50}>
+                  <GalleryTile event={e} onPress={() => router.push(`/gallery/${e.id}` as never)} />
+                </FadeInView>
+              ))}
+            </View>
+          )}
           <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
@@ -90,9 +108,9 @@ export default function GalleryTabScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 16 },
-  kicker: { color: C.pinkHi, letterSpacing: 3, fontWeight: "800" as const, fontSize: 11 },
-  title: { color: C.text, fontSize: 34, fontWeight: "800" as const, letterSpacing: -0.6, marginTop: 6 },
-  sub: { color: C.subtext, fontSize: 14, marginTop: 8, lineHeight: 20 },
+  kicker: { ...T.kicker },
+  title: { ...T.screenTitle, marginTop: 6 },
+  sub: { ...T.body, marginTop: 8 },
   grid: { marginTop: 18, gap: 14 },
   tile: {
     backgroundColor: C.card,

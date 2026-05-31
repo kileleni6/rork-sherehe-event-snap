@@ -1,13 +1,14 @@
-import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
 import { Building2, Check, Crown, HardDrive, Mail, Sparkles, Users, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { PrimaryButton } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import { FadeInView, GhostButton, IconButton, PrimaryButton, useToast } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { triggerHaptic } from "@/lib/haptics";
 import { configurePurchases, isPurchasesAvailable, restorePurchases } from "@/lib/purchases";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
@@ -46,6 +47,7 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { setProfile, profile } = useEvents();
   const { t } = useOnboarding();
+  const toast = useToast();
   const [tier, setTier] = useState<TierId>("celebration");
   const [restoring, setRestoring] = useState<boolean>(false);
   useEffect(() => {
@@ -71,9 +73,7 @@ export default function PaywallScreen() {
               <Crown color={C.gold} size={14} />
               <Text style={ps.crownText}>SHEREHE PRO</Text>
             </View>
-            <Pressable onPress={() => router.back()} style={ps.closeBtn} hitSlop={10}>
-              <X color={C.text} size={20} />
-            </Pressable>
+            <IconButton icon={X} onPress={() => router.back()} variant="glass" haptic="light" />
           </View>
           <View style={ps.alreadyWrap}>
             <Sparkles color={C.gold} size={36} />
@@ -91,18 +91,17 @@ export default function PaywallScreen() {
   const subscribe = async () => {
     if (!selected) return;
     if (selected.free) {
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      triggerHaptic("success");
       await setProfile({ premium: false });
       router.back();
       return;
     }
-    // Navigate to Plan Detail screen for all paid tiers
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     router.push({ pathname: "/plan-detail" as never, params: { tier: selected.id } as never });
   };
 
   const enterpriseCTA = () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     Linking.openURL("mailto:events@sherehe.net?subject=Custom%20Enterprise%20Event%20Inquiry").catch(() => {
       Alert.alert("Contact us", "Please email events@sherehe.net for custom enterprise event pricing.");
     });
@@ -114,7 +113,7 @@ export default function PaywallScreen() {
       const r = await restorePurchases();
       if (r.entitled) {
         await setProfile({ premium: true });
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        triggerHaptic("success");
         Alert.alert(t("paywall_restored_title"), t("paywall_restored_body"));
       } else if (r.mocked) {
         Alert.alert(t("paywall_restore_unavailable_title"), t("paywall_restore_unavailable_body"));
@@ -149,17 +148,17 @@ export default function PaywallScreen() {
             <Crown color={C.gold} size={14} />
             <Text style={ps.crownText}>SHEREHE PRO</Text>
           </View>
-          <Pressable onPress={() => router.back()} style={ps.closeBtn} hitSlop={10}>
-            <X color={C.text} size={20} />
-          </Pressable>
+          <IconButton icon={X} onPress={() => router.back()} variant="glass" haptic="light" />
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+          <FadeInView>
           <View style={ps.hero}>
             <Sparkles color={C.gold} size={30} />
             <Text style={ps.heroTitle}>{t("paywall_hero_title")}</Text>
             <Text style={ps.heroSub}>{t("paywall_hero_sub")}</Text>
           </View>
+          </FadeInView>
 
           <Text style={ps.sectionLabel}>{t("paywall_select_tier")}</Text>
 
@@ -167,9 +166,11 @@ export default function PaywallScreen() {
             {TIERS.map((tr) => {
               const active = tier === tr.id;
               return (
-                <Pressable
+                <PressableScale
                   key={tr.id}
-                  onPress={() => setTier(tr.id)}
+                  onPress={() => { triggerHaptic("selection"); setTier(tr.id); }}
+                  haptic={false}
+                  pressedScale={0.99}
                   style={[ps.tier, active ? ps.tierActive : null]}
                 >
                   {tr.highlight ? (
@@ -192,7 +193,7 @@ export default function PaywallScreen() {
                       {active ? <Check color={C.text} size={14} /> : null}
                     </View>
                   </View>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
@@ -204,7 +205,7 @@ export default function PaywallScreen() {
             <View style={ps.enterpriseLine} />
           </View>
 
-          <Pressable onPress={enterpriseCTA} style={ps.enterpriseCard}>
+          <PressableScale onPress={enterpriseCTA} haptic={false} pressedScale={0.99} style={ps.enterpriseCard}>
             <LinearGradient
               colors={["rgba(244,201,123,0.12)", "rgba(244,201,123,0.04)"]}
               style={StyleSheet.absoluteFillObject}
@@ -227,7 +228,7 @@ export default function PaywallScreen() {
               <Mail color={C.gold} size={16} />
               <Text style={ps.enterpriseCTAText}>Contact Us for Pricing</Text>
             </View>
-          </Pressable>
+          </PressableScale>
 
           <View style={ps.perks}>
             {[
@@ -258,13 +259,9 @@ export default function PaywallScreen() {
             disabled={restoring}
           />
           <View style={ps.footerRow}>
-            <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text style={ps.maybe}>{t("paywall_maybe_later")}</Text>
-            </Pressable>
+            <GhostButton title={t("paywall_maybe_later")} onPress={() => router.back()} />
             <Text style={ps.footerDot}>·</Text>
-            <Pressable onPress={restore} hitSlop={8} disabled={restoring}>
-              <Text style={ps.maybe}>{t("paywall_restore")}</Text>
-            </Pressable>
+            <GhostButton title={t("paywall_restore")} onPress={restore} />
           </View>
           {!isPurchasesAvailable() ? (
             <Text style={ps.devNote}>{t("paywall_expo_go_note")}</Text>

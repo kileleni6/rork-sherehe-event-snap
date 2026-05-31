@@ -1,5 +1,3 @@
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -21,23 +19,29 @@ import {
   X,
   Zap,
 } from "lucide-react-native";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import { generateInvitationMessage } from "@/lib/ai";
+import { triggerHaptic } from "@/lib/haptics";
 import {
   Alert,
+  Animated,
+  KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Calendar } from "@/components/Calendar";
 import { InvitationCard } from "@/components/InvitationCard";
-import { Chip, GhostButton, PrimaryButton } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import { Chip, EmptyState, FadeInView, GhostButton, IconButton, PrimaryButton, ShimmerImage, TextField } from "@/components/ui";
+import { MOTION } from "@/constants/motion";
 import { C } from "@/constants/colors";
 import {
   COVER_CATEGORIES,
@@ -358,6 +362,51 @@ const ACTIVITY_SUGGESTIONS: Record<EventTypeId, string[]> = {
   custom: ["Welcome", "Main moment", "Toasts", "Dinner", "Performance", "After-party"],
 };
 
+function WizardPip({ active }: { active: boolean }) {
+  const width = useRef(new Animated.Value(active ? 1 : 0.35)).current;
+  useEffect(() => {
+    Animated.timing(width, {
+      toValue: active ? 1 : 0.35,
+      duration: MOTION.normal,
+      useNativeDriver: false,
+    }).start();
+  }, [active, width]);
+  return (
+    <Animated.View
+      style={[s.pip, { flex: width, backgroundColor: active ? C.pink : C.hair }]}
+    />
+  );
+}
+
+/** Selection tile with spring press + haptic. */
+function SelectTile({
+  onPress,
+  style,
+  children,
+  disabled,
+  haptic = "selection",
+  ...rest
+}: {
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+  disabled?: boolean;
+  haptic?: "selection" | "light" | false;
+} & Pick<React.ComponentProps<typeof PressableScale>, "hitSlop" | "testID">) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      haptic={haptic}
+      pressedScale={0.97}
+      disabled={disabled}
+      style={style}
+      {...rest}
+    >
+      {children}
+    </PressableScale>
+  );
+}
+
 function WheelColumn({
   label,
   values,
@@ -382,18 +431,19 @@ function WheelColumn({
         {values.map((v) => {
           const active = v === value;
           return (
-            <Pressable
+            <SelectTile
               key={v}
               onPress={() => {
-                if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                triggerHaptic("selection");
                 onChange(v);
               }}
+              haptic={false}
               style={[s.wheelItem, active ? s.wheelItemActive : null]}
             >
               <Text style={[s.wheelItemText, active ? s.wheelItemTextActive : null]}>
                 {format(v)}
               </Text>
-            </Pressable>
+            </SelectTile>
           );
         })}
       </ScrollView>
@@ -403,11 +453,15 @@ function WheelColumn({
 
 function StepHeader({ step, title }: { step: string; title: string }) {
   return (
-    <View style={{ gap: 6, marginBottom: 16 }}>
+    <FadeInView style={{ gap: 6, marginBottom: 16 }}>
       <Text style={s.kicker}>{step}</Text>
       <Text style={s.title}>{title}</Text>
-    </View>
+    </FadeInView>
   );
+}
+
+function WizardStep({ children }: { children: React.ReactNode }) {
+  return <FadeInView delay={30}>{children}</FadeInView>;
 }
 
 export default function CreateEventScreen() {
@@ -503,7 +557,7 @@ export default function CreateEventScreen() {
   );
 
   const next = () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     if (quickMode && step === 0) {
       setStep(TOTAL_STEPS - 1);
       return;
@@ -511,6 +565,7 @@ export default function CreateEventScreen() {
     setStep((v) => Math.min(v + 1, TOTAL_STEPS - 1));
   };
   const back = () => {
+    triggerHaptic("light");
     if (step === 0) {
       router.back();
       return;
@@ -519,9 +574,7 @@ export default function CreateEventScreen() {
   };
 
   const submit = async () => {
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    }
+    triggerHaptic("success");
     const ev = await createEvent({
       name: name || "Untitled event",
       type,
@@ -558,7 +611,7 @@ export default function CreateEventScreen() {
    * local template variants if the AI call fails or times out.
    */
   const generateCopy = async () => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    triggerHaptic("light");
 
     setAiLoading(true);
     const reqId = ++aiRequestId.current;
@@ -590,7 +643,7 @@ export default function CreateEventScreen() {
    * prepending a tonal opener if the AI call fails.
    */
   const rewriteCopy = async () => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    triggerHaptic("light");
     const base = message.trim();
     if (!base) {
       generateCopy();
@@ -634,7 +687,7 @@ export default function CreateEventScreen() {
         quality: 0.9,
       });
       if (!res.canceled && res.assets[0]) {
-        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+        triggerHaptic("selection");
         setCover(res.assets[0].uri);
       }
     } catch (e) {
@@ -644,19 +697,19 @@ export default function CreateEventScreen() {
 
   const addScheduleItem = () => {
     if (!schedTitle.trim()) return;
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     const time = formatTime12(schedHour, schedMinute);
     setSchedule((prev) => [...prev, { id: `s_${Date.now()}`, time, title: schedTitle.trim() }]);
     setSchedTitle("");
     setShowSuggestions(false);
   };
   const pickSuggestion = (s: string) => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     setSchedTitle(s);
     setShowSuggestions(false);
   };
   const addSchedulePreset = (time: string, title: string) => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     setSchedule((prev) => [...prev, { id: `s_${Date.now()}_${Math.random()}`, time, title }]);
   };
   const removeScheduleItem = (id: string) => {
@@ -688,31 +741,33 @@ export default function CreateEventScreen() {
     <View style={s.container}>
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         <View style={s.topBar}>
-          <Pressable onPress={back} style={s.topBtn} hitSlop={10}>
-            <ChevronLeft color={C.text} size={22} />
-          </Pressable>
+          <IconButton icon={ChevronLeft} onPress={back} variant="glass" iconSize={22} haptic="light" />
           <View style={s.progressRow}>
             {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-              <View key={i} style={[s.pip, { backgroundColor: i <= step ? C.pink : C.hair }]} />
+              <WizardPip key={i} active={i <= step} />
             ))}
           </View>
           <View style={s.topBtn} />
         </View>
 
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={{ padding: 18, paddingBottom: 130 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {step === 0 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 1 OF ${TOTAL_STEPS}`} title="The basics" />
 
-              <Pressable
+              <PressableScale
                 onPress={() => {
-                  if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+                  triggerHaptic("selection");
                   setQuickMode((v) => !v);
                 }}
+                haptic={false}
+                pressedScale={0.99}
                 style={[s.quickCard, quickMode ? s.quickCardActive : null]}
               >
                 <View style={[s.quickIcon, quickMode ? { backgroundColor: C.pink } : null]}>
@@ -729,7 +784,7 @@ export default function CreateEventScreen() {
                 <View style={[s.quickToggle, quickMode ? s.quickToggleOn : null]}>
                   <View style={[s.quickKnob, quickMode ? s.quickKnobOn : null]} />
                 </View>
-              </Pressable>
+              </PressableScale>
               <Text style={s.label}>Event type</Text>
               <ScrollView
                 horizontal
@@ -743,44 +798,17 @@ export default function CreateEventScreen() {
               </ScrollView>
 
               {type === "custom" ? (
-                <>
-                  <Text style={s.label}>Custom event type</Text>
-                  <TextInput
-                    placeholder="e.g. Housewarming · Reunion · Engagement"
-                    placeholderTextColor={C.mute}
-                    value={customLabel}
-                    onChangeText={setCustomLabel}
-                    style={s.input}
-                  />
-                </>
+                <TextField
+                  label="Custom event type"
+                  placeholder="e.g. Housewarming · Reunion · Engagement"
+                  value={customLabel}
+                  onChangeText={setCustomLabel}
+                />
               ) : null}
 
-              <Text style={s.label}>Event name</Text>
-              <TextInput
-                placeholder="e.g. Amara & Kofi"
-                placeholderTextColor={C.mute}
-                value={name}
-                onChangeText={setName}
-                style={s.input}
-              />
-
-              <Text style={s.label}>Hosted by</Text>
-              <TextInput
-                placeholder="Your name(s)"
-                placeholderTextColor={C.mute}
-                value={hostName}
-                onChangeText={setHostName}
-                style={s.input}
-              />
-
-              <Text style={s.label}>Venue</Text>
-              <TextInput
-                placeholder="e.g. Skylounge Rooftop · Lagos"
-                placeholderTextColor={C.mute}
-                value={venue}
-                onChangeText={setVenue}
-                style={s.input}
-              />
+              <TextField label="Event name" placeholder="e.g. Amara & Kofi" value={name} onChangeText={setName} />
+              <TextField label="Hosted by" placeholder="Your name(s)" value={hostName} onChangeText={setHostName} />
+              <TextField label="Venue" placeholder="e.g. Skylounge Rooftop · Lagos" value={venue} onChangeText={setVenue} />
 
               <Text style={s.label}>Pick a date</Text>
               <Calendar value={dateWithTime} onChange={setDate} minDate={Date.now()} />
@@ -799,7 +827,7 @@ export default function CreateEventScreen() {
                 {TIME_OF_DAY.map((t) => {
                   const active = timeOfDay === t.id;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={t.id}
                       onPress={() => pickTimePreset(t.id)}
                       style={[s.todChip, active ? s.todChipActive : null]}
@@ -807,7 +835,7 @@ export default function CreateEventScreen() {
                       <Text style={s.todEmoji}>{t.emoji}</Text>
                       <Text style={[s.todLabel, active ? { color: C.text } : null]}>{t.label}</Text>
                       <Text style={[s.todHint, active ? { color: "rgba(255,255,255,0.85)" } : null]}>{t.hint}</Text>
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
@@ -817,37 +845,37 @@ export default function CreateEventScreen() {
                 <View style={s.timeBox}>
                   <Text style={s.timeBoxLabel}>Hour</Text>
                   <View style={s.timeBoxRow}>
-                    <Pressable onPress={() => setTime((hour + 23) % 24, minute)} style={s.timeStep}>
+                    <SelectTile onPress={() => setTime((hour + 23) % 24, minute)} style={s.timeStep}>
                       <Text style={s.timeStepText}>-</Text>
-                    </Pressable>
+                    </SelectTile>
                     <Text style={s.timeValue}>{String(hour).padStart(2, "0")}</Text>
-                    <Pressable onPress={() => setTime((hour + 1) % 24, minute)} style={s.timeStep}>
+                    <SelectTile onPress={() => setTime((hour + 1) % 24, minute)} style={s.timeStep}>
                       <Text style={s.timeStepText}>+</Text>
-                    </Pressable>
+                    </SelectTile>
                   </View>
                 </View>
                 <View style={s.timeBox}>
                   <Text style={s.timeBoxLabel}>Min</Text>
                   <View style={s.timeBoxRow}>
-                    <Pressable onPress={() => setTime(hour, (minute + 45) % 60)} style={s.timeStep}>
+                    <SelectTile onPress={() => setTime(hour, (minute + 45) % 60)} style={s.timeStep}>
                       <Text style={s.timeStepText}>-</Text>
-                    </Pressable>
+                    </SelectTile>
                     <Text style={s.timeValue}>{String(minute).padStart(2, "0")}</Text>
-                    <Pressable onPress={() => setTime(hour, (minute + 15) % 60)} style={s.timeStep}>
+                    <SelectTile onPress={() => setTime(hour, (minute + 15) % 60)} style={s.timeStep}>
                       <Text style={s.timeStepText}>+</Text>
-                    </Pressable>
+                    </SelectTile>
                   </View>
                 </View>
               </View>
-            </>
+            </WizardStep>
           ) : null}
 
           {step === 1 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 2 OF ${TOTAL_STEPS}`} title="Cover & details" />
 
               <Text style={s.label}>Cover photo</Text>
-              <Pressable onPress={pickCustomCover} style={s.uploadCard}>
+              <SelectTile onPress={pickCustomCover} style={s.uploadCard}>
                 <View style={s.uploadIcon}>
                   <ImagePlus color={C.pinkHi} size={20} />
                 </View>
@@ -856,11 +884,11 @@ export default function CreateEventScreen() {
                   <Text style={s.uploadSub}>Pick any photo from your device</Text>
                 </View>
                 <ChevronRight color={C.mute} size={18} />
-              </Pressable>
+              </SelectTile>
 
               {cover && !COVER_CATEGORIES.some((cat) => cat.images.includes(cover)) ? (
                 <View style={s.customCoverWrap}>
-                  <Image source={{ uri: cover }} style={s.customCoverImg} contentFit="cover" />
+                  <ShimmerImage uri={cover} style={s.customCoverImg} borderRadius={16} />
                   <View style={s.customCoverTag}>
                     <Check color={C.text} size={12} />
                     <Text style={s.customCoverTagText}>Your upload</Text>
@@ -893,18 +921,18 @@ export default function CreateEventScreen() {
                 style={{ marginHorizontal: -18, paddingHorizontal: 18, marginTop: 8 }}
               >
                 {visibleCovers.map((c) => (
-                  <Pressable
+                  <SelectTile
                     key={c}
                     onPress={() => setCover(c)}
                     style={[s.coverThumb, cover === c ? s.coverThumbActive : null]}
                   >
-                    <Image source={{ uri: c }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    <ShimmerImage uri={c} style={{ width: "100%", height: "100%" }} borderRadius={14} />
                     {cover === c ? (
                       <View style={s.coverCheck}>
                         <Check color={C.text} size={16} />
                       </View>
                     ) : null}
-                  </Pressable>
+                  </SelectTile>
                 ))}
               </ScrollView>
 
@@ -912,47 +940,45 @@ export default function CreateEventScreen() {
                 <Text style={s.label}>Message to guests</Text>
                 <View style={{ flexDirection: "row", gap: 6 }}>
                   {message.trim().length > 0 ? (
-                    <Pressable onPress={rewriteCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
+                    <SelectTile onPress={rewriteCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
                       {aiLoading ? (
                         <RefreshCw color={C.mute} size={13} />
                       ) : (
                         <RefreshCw color={C.pinkHi} size={13} />
                       )}
                       <Text style={[s.aiBtnText, aiLoading && { color: C.mute }]}>{aiLoading ? "Writing…" : "Rewrite"}</Text>
-                    </Pressable>
+                    </SelectTile>
                   ) : null}
-                  <Pressable onPress={generateCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
+                  <SelectTile onPress={generateCopy} style={[s.aiBtn, aiLoading && s.aiBtnDisabled]} disabled={aiLoading}>
                     {aiLoading ? (
                       <Sparkles color={C.mute} size={14} />
                     ) : (
                       <Wand2 color={C.pinkHi} size={14} />
                     )}
                     <Text style={[s.aiBtnText, aiLoading && { color: C.mute }]}>{aiLoading ? "Writing…" : "AI write"}</Text>
-                  </Pressable>
+                  </SelectTile>
                 </View>
               </View>
-              <TextInput
+              <TextField
+                label="Message to guests"
                 placeholder="A warm, personal note for your guests…"
-                placeholderTextColor={C.mute}
                 value={message}
                 onChangeText={setMessage}
-                style={[s.input, { height: 110, textAlignVertical: "top" }]}
                 multiline
+                style={{ height: 110, textAlignVertical: "top" }}
               />
 
-              <Text style={s.label}>Dress code (optional)</Text>
-              <TextInput
+              <TextField
+                label="Dress code (optional)"
                 placeholder="e.g. Black tie · Glam glitter"
-                placeholderTextColor={C.mute}
                 value={dressCode}
                 onChangeText={setDressCode}
-                style={s.input}
               />
-            </>
+            </WizardStep>
           ) : null}
 
           {step === 2 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 3 OF ${TOTAL_STEPS}`} title="Event schedule" />
               <Text style={s.helperText}>
                 Build a run-of-show so guests know what's happening when. Add as many moments as you like.
@@ -970,11 +996,11 @@ export default function CreateEventScreen() {
                 style={{ marginHorizontal: -18, paddingHorizontal: 18 }}
               >
                 {shiftPresets(SCHEDULE_PRESETS[type], timeOfDay).map((p, idx) => (
-                  <Pressable key={`${p.t}-${idx}`} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
+                  <SelectTile key={`${p.t}-${idx}`} onPress={() => addSchedulePreset(p.time, p.t)} style={s.presetChip}>
                     <Plus color={C.pinkHi} size={13} />
                     <Text style={s.presetChipText}>{p.t}</Text>
                     <Text style={s.presetChipTime}>{p.time}</Text>
-                  </Pressable>
+                  </SelectTile>
                 ))}
               </ScrollView>
 
@@ -993,59 +1019,46 @@ export default function CreateEventScreen() {
                       </View>
                       <Text style={s.schedItemTitleBig}>{it.title}</Text>
                     </View>
-                    <Pressable onPress={() => removeScheduleItem(it.id)} hitSlop={8} style={s.schedRemove}>
-                      <X color={C.danger} size={16} />
-                    </Pressable>
+                    <IconButton icon={X} onPress={() => removeScheduleItem(it.id)} size={34} iconSize={16} color={C.danger} variant="ghost" haptic="light" />
                   </View>
                 ))}
                 {schedule.length === 0 ? (
-                  <View style={s.emptySchedule}>
-                    <Sparkles color={C.mute} size={16} />
-                    <Text style={s.emptyScheduleText}>No items yet</Text>
-                    <Text style={s.emptyScheduleSub}>Tap a quick-add chip above or write your own below.</Text>
-                  </View>
+                  <EmptyState
+                    icon={Sparkles}
+                    title="No items yet"
+                    subtitle="Tap a quick-add chip above or write your own below."
+                    style={{ paddingVertical: 20 }}
+                  />
                 ) : null}
               </View>
 
               <Text style={s.label}>Add your own</Text>
               <View style={s.customSchedCard}>
-                <Text style={s.miniLabel}>Activity</Text>
-                <View style={{ position: "relative", zIndex: 5 }}>
-                  <Pressable
-                    onPress={() => setShowSuggestions((v) => !v)}
-                    style={s.suggestRow}
-                  >
-                    <TextInput
-                      placeholder="e.g. Reception & dinner"
-                      placeholderTextColor={C.mute}
-                      value={schedTitle}
-                      onChangeText={(v) => { setSchedTitle(v); setShowSuggestions(false); }}
-                      style={s.suggestInput}
-                      onFocus={() => setShowSuggestions(false)}
-                    />
-                    <Pressable
-                      onPress={() => setShowSuggestions((v) => !v)}
-                      style={s.suggestToggle}
-                      hitSlop={8}
-                    >
-                      <ChevronRight
-                        color={C.pinkHi}
-                        size={16}
-                        style={{ transform: [{ rotate: showSuggestions ? "-90deg" : "90deg" }] }}
-                      />
-                    </Pressable>
-                  </Pressable>
+                <TextField
+                  label="Activity"
+                  placeholder="e.g. Reception & dinner"
+                  value={schedTitle}
+                  onChangeText={(v) => { setSchedTitle(v); setShowSuggestions(false); }}
+                />
+                <SelectTile
+                  onPress={() => setShowSuggestions((v) => !v)}
+                  haptic="light"
+                  style={[s.suggestToggle, { alignSelf: "flex-end", marginTop: -8 }]}
+                >
+                  <Text style={{ color: C.pinkHi, fontSize: 12, fontWeight: "600" as const }}>
+                    {showSuggestions ? "Hide suggestions" : "Show suggestions"}
+                  </Text>
+                </SelectTile>
                   {showSuggestions ? (
                     <View style={s.suggestList}>
                       {ACTIVITY_SUGGESTIONS[type].map((sug) => (
-                        <Pressable key={sug} onPress={() => pickSuggestion(sug)} style={s.suggestItem}>
+                        <SelectTile key={sug} onPress={() => pickSuggestion(sug)} style={s.suggestItem}>
                           <Sparkles color={C.gold} size={12} />
                           <Text style={s.suggestItemText}>{sug}</Text>
-                        </Pressable>
+                        </SelectTile>
                       ))}
                     </View>
                   ) : null}
-                </View>
 
                 <Text style={[s.miniLabel, { marginTop: 14 }]}>Time</Text>
                 <View style={s.wheelRow}>
@@ -1073,23 +1086,23 @@ export default function CreateEventScreen() {
                       const isPM = schedHour >= 12;
                       const active = (p === "PM") === isPM;
                       return (
-                        <Pressable
+                        <SelectTile
                           key={p}
                           onPress={() => {
-                            if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
                             if (p === "PM" && !isPM) setSchedHour((h) => (h + 12) % 24);
                             if (p === "AM" && isPM) setSchedHour((h) => (h + 12) % 24);
                           }}
+                          haptic="selection"
                           style={[s.ampmBtn, active ? s.ampmBtnActive : null]}
                         >
                           <Text style={[s.ampmText, active ? { color: C.text } : null]}>{p}</Text>
-                        </Pressable>
+                        </SelectTile>
                       );
                     })}
                   </View>
                 </View>
 
-                <Pressable
+                <SelectTile
                   onPress={addScheduleItem}
                   disabled={!schedTitle.trim()}
                   style={[s.addRowBtn, { opacity: !schedTitle.trim() ? 0.4 : 1, marginTop: 14 }]}
@@ -1098,13 +1111,13 @@ export default function CreateEventScreen() {
                   <Text style={s.addRowBtnText}>
                     Add at {formatTime12(schedHour, schedMinute)}
                   </Text>
-                </Pressable>
+                </SelectTile>
               </View>
-            </>
+            </WizardStep>
           ) : null}
 
           {step === 3 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 4 OF ${TOTAL_STEPS}`} title="Pick a template" />
               <Text style={s.helperText}>
                 {TEMPLATES.length}+ unique designs across {TEMPLATE_CATEGORIES.length} aesthetics — pick a vibe.
@@ -1132,12 +1145,10 @@ export default function CreateEventScreen() {
                 {visibleTemplates.map((t) => {
                   const active = template === t.id;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={t.id}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setTemplate(t.id);
-                      }}
+                      onPress={() => setTemplate(t.id)}
+                      haptic="selection"
                       style={[s.tplCard, active ? s.tplCardActive : null]}
                     >
                       <LinearGradient
@@ -1157,15 +1168,15 @@ export default function CreateEventScreen() {
                       </LinearGradient>
                       <Text style={s.tplCardName} numberOfLines={1}>{t.name}</Text>
                       <Text style={s.tplCardTagline} numberOfLines={1}>{t.tagline}</Text>
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
-            </>
+            </WizardStep>
           ) : null}
 
           {step === 4 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 5 OF ${TOTAL_STEPS}`} title="Camera & gallery rules" />
               <Text style={s.helperText}>
                 Dial in how guests capture and when the gallery opens. You can change anything later.
@@ -1176,17 +1187,15 @@ export default function CreateEventScreen() {
                 {SHOT_PRESETS.map((p) => {
                   const active = shotsPerGuest === p.value;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={p.value}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setShotsPerGuest(p.value);
-                      }}
+                      onPress={() => setShotsPerGuest(p.value)}
+                      haptic="selection"
                       style={[s.shotTile, active ? s.shotTileActive : null]}
                     >
                       <Text style={[s.shotValue, active ? { color: C.text } : null]}>{p.label}</Text>
                       <Text style={[s.shotSub, active ? { color: "rgba(255,255,255,0.85)" } : null]}>{p.sub}</Text>
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
@@ -1209,12 +1218,10 @@ export default function CreateEventScreen() {
                   const active = revealMode === opt.id;
                   const ts = computeRevealAt(dateWithTime, opt.id);
                   return (
-                    <Pressable
+                    <SelectTile
                       key={opt.id}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setRevealMode(opt.id);
-                      }}
+                      onPress={() => setRevealMode(opt.id)}
+                      haptic="selection"
                       style={[s.ruleRow, active ? s.ruleRowActive : null]}
                     >
                       <View style={[s.ruleDot, active ? s.ruleDotActive : null]}>
@@ -1228,7 +1235,7 @@ export default function CreateEventScreen() {
                         </Text>
                       </View>
                       <Unlock color={active ? C.pinkHi : C.mute} size={16} />
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
@@ -1242,16 +1249,14 @@ export default function CreateEventScreen() {
                 ] as { id: UploadPerm; label: string }[]).map((opt) => {
                   const active = uploadPermission === opt.id;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={opt.id}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setUploadPermission(opt.id);
-                      }}
+                      onPress={() => setUploadPermission(opt.id)}
+                      haptic="selection"
                       style={[s.segBtn, active ? s.segBtnActive : null]}
                     >
                       <Text style={[s.segText, active ? { color: C.text } : null]}>{opt.label}</Text>
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
@@ -1266,12 +1271,10 @@ export default function CreateEventScreen() {
                   const active = privacy === opt.id;
                   const Icon = opt.icon;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={opt.id}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setPrivacy(opt.id);
-                      }}
+                      onPress={() => setPrivacy(opt.id)}
+                      haptic="selection"
                       style={[s.ruleRow, active ? s.ruleRowActive : null]}
                     >
                       <View style={[s.ruleDot, active ? s.ruleDotActive : null]}>
@@ -1282,18 +1285,18 @@ export default function CreateEventScreen() {
                         <Text style={s.ruleSub}>{opt.sub}</Text>
                       </View>
                       <Icon color={active ? C.pinkHi : C.mute} size={16} />
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
               {privacy === "passcode" ? (
-                <TextInput
-                  placeholder="Set a 4\u20136 digit passcode"
-                  placeholderTextColor={C.mute}
+                <TextField
+                  label="Event passcode"
+                  placeholder="4–6 characters"
                   value={passcode}
                   onChangeText={(v) => setPasscode(v.replace(/[^0-9a-zA-Z]/g, "").slice(0, 6))}
-                  style={[s.input, { marginTop: 10, letterSpacing: 4, textAlign: "center", fontSize: 20 }]}
                   autoCapitalize="characters"
+                  style={{ letterSpacing: 4, textAlign: "center", fontSize: 20 }}
                 />
               ) : null}
 
@@ -1306,25 +1309,21 @@ export default function CreateEventScreen() {
                 ] as { id: Visibility; label: string }[]).map((opt) => {
                   const active = visibility === opt.id;
                   return (
-                    <Pressable
+                    <SelectTile
                       key={opt.id}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                        setVisibility(opt.id);
-                      }}
+                      onPress={() => setVisibility(opt.id)}
+                      haptic="selection"
                       style={[s.segBtn, active ? s.segBtnActive : null]}
                     >
                       <Text style={[s.segText, active ? { color: C.text } : null]}>{opt.label}</Text>
-                    </Pressable>
+                    </SelectTile>
                   );
                 })}
               </View>
 
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
-                  setCheckInEnabled((v) => !v);
-                }}
+              <SelectTile
+                onPress={() => setCheckInEnabled((v) => !v)}
+                haptic="selection"
                 style={[s.checkinCard, checkInEnabled ? s.checkinCardActive : null]}
               >
                 <View style={[s.checkinIcon, checkInEnabled ? { backgroundColor: C.pink } : null]}>
@@ -1341,12 +1340,12 @@ export default function CreateEventScreen() {
                 <View style={[s.quickToggle, checkInEnabled ? s.quickToggleOn : null]}>
                   <View style={[s.quickKnob, checkInEnabled ? s.quickKnobOn : null]} />
                 </View>
-              </Pressable>
-            </>
+              </SelectTile>
+            </WizardStep>
           ) : null}
 
           {step === 5 ? (
-            <>
+            <WizardStep>
               <StepHeader step={`STEP 6 OF ${TOTAL_STEPS}`} title="Preview & publish" />
               <InvitationCard event={preview as never} template={tpl} />
 
@@ -1386,9 +1385,10 @@ export default function CreateEventScreen() {
                   After publishing you'll get a shareable link, QR, and the disposable camera unlocks for guests.
                 </Text>
               </View>
-            </>
+            </WizardStep>
           ) : null}
         </ScrollView>
+        </KeyboardAvoidingView>
 
         <View style={[s.footer, { paddingBottom: 18 + Math.max(insets.bottom, 6) }]}>
           {step > 0 ? <GhostButton title="Back" onPress={back} style={{ flex: 1 }} /> : null}
@@ -1408,7 +1408,7 @@ const s = StyleSheet.create({
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 8 },
   topBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 999 },
   progressRow: { flexDirection: "row", gap: 6 },
-  pip: { width: 22, height: 4, borderRadius: 4 },
+  pip: { height: 4, borderRadius: 4 },
   kicker: { color: C.pinkHi, letterSpacing: 2.5, fontWeight: "800" as const, fontSize: 11 },
   title: { color: C.text, fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.5 },
   label: { color: C.subtext, fontSize: 13, fontWeight: "600" as const, marginTop: 18, marginBottom: 8, letterSpacing: 0.3 },

@@ -1,17 +1,30 @@
 import * as Clipboard from "expo-clipboard";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Calendar as CalendarIcon, Check, ChevronLeft, Copy, Link as LinkIcon, MessageCircle, Phone, Share2, Ticket } from "lucide-react-native";
+import { Calendar as CalendarIcon, Check, Copy, Link as LinkIcon, MessageCircle, Phone, Share2, Sparkles, Ticket } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InvitationCard } from "@/components/InvitationCard";
-import { Card, Chip, GhostButton, PrimaryButton, SectionTitle } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import {
+  Card,
+  Chip,
+  EmptyState,
+  FadeInView,
+  GhostButton,
+  IconButton,
+  PrimaryButton,
+  ScreenHeader,
+  SectionTitle,
+  ShimmerImage,
+  TextField,
+  useToast,
+} from "@/components/ui";
 import { C } from "@/constants/colors";
 import { addToCalendar } from "@/lib/calendar";
+import { triggerHaptic } from "@/lib/haptics";
 import { sendPassConfirmationSms } from "@/lib/sms";
 import { getTemplate, useEvents } from "@/providers/EventsProvider";
 import type { RsvpStatus } from "@/types/event";
@@ -20,6 +33,7 @@ export default function InviteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const { findById, addRsvp } = useEvents();
   const event = findById(id);
   const [name, setName] = useState<string>("");
@@ -35,7 +49,13 @@ export default function InviteScreen() {
   if (!event || !tpl) {
     return (
       <View style={s.container}>
-        <Text style={{ color: C.text, padding: 30 }}>Invitation not found.</Text>
+        <Stack.Screen options={{ headerShown: false }} />
+        <EmptyState
+          icon={Sparkles}
+          title="Invitation not found"
+          subtitle="This link may have expired or the event was removed."
+          action={{ label: "Go back", onPress: () => router.back() }}
+        />
       </View>
     );
   }
@@ -44,7 +64,7 @@ export default function InviteScreen() {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&color=FFFFFF&bgcolor=14141A&qzone=1&data=${encodeURIComponent(url)}`;
 
   const submit = async () => {
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    triggerHaptic("success");
     const r = await addRsvp(event.id, {
       name: name || "Guest",
       status,
@@ -63,17 +83,18 @@ export default function InviteScreen() {
     }
     setLastRsvpId(r.id);
     setSubmitted(true);
+    toast.success("You're on the list!");
   };
 
   const openPass = () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     if (lastRsvpId) {
       router.push(`/pass/${event.id}?rsvp=${lastRsvpId}` as never);
     }
   };
 
   const onAddCalendar = async () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     await addToCalendar({
       id: event.id,
       title: event.name,
@@ -85,12 +106,12 @@ export default function InviteScreen() {
   };
 
   const share = async (target: "share" | "copy") => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     const message = `You're invited to ${event.name}! ${url}`;
     if (target === "copy") {
       try {
         await Clipboard.setStringAsync(url);
-        Alert.alert("Copied", "Invite link copied to clipboard.");
+        toast.success("Invite link copied");
       } catch (e) {
         console.log("[copy]", e);
       }
@@ -124,18 +145,17 @@ export default function InviteScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient colors={[tpl.bg[0], "transparent"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 320 }} />
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
-        <View style={s.topBar}>
-          <Pressable onPress={() => router.back()} style={s.headerBtn} hitSlop={10}>
-            <ChevronLeft color={C.text} size={22} />
-          </Pressable>
-          <Text style={s.topTitle}>Invitation</Text>
-          <Pressable onPress={() => share("share")} style={s.headerBtn} hitSlop={10}>
-            <Share2 color={C.text} size={18} />
-          </Pressable>
-        </View>
+        <ScreenHeader
+          title="Invitation"
+          onBack={() => router.back()}
+          right={<IconButton icon={Share2} onPress={() => share("share")} variant="glass" iconSize={18} haptic="light" />}
+        />
 
-        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 160 }} showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
+          <FadeInView>
           <InvitationCard event={event} template={tpl} />
+          </FadeInView>
 
           <View style={s.howCard}>
             <Text style={s.howKicker}>HOW IT WORKS</Text>
@@ -159,28 +179,26 @@ export default function InviteScreen() {
             </View>
           </View>
 
-          <Pressable onPress={onAddCalendar} style={s.calRow}>
+          <PressableScale onPress={onAddCalendar} haptic="light" style={s.calRow}>
             <CalendarIcon color={C.gold} size={18} />
             <View style={{ flex: 1 }}>
               <Text style={s.calRowText}>Add to my calendar</Text>
               <Text style={s.calRowSub}>So you don't miss a thing</Text>
             </View>
             <Text style={s.calRowHint}>Open</Text>
-          </Pressable>
+          </PressableScale>
 
           <SectionTitle style={{ marginTop: 28 }}>Share the moment</SectionTitle>
           <Text style={s.muteSub}>Guests can RSVP without installing the app.</Text>
 
           <Card style={{ marginTop: 14, alignItems: "center", gap: 14, paddingVertical: 22 }}>
             <View style={s.qrFrame}>
-              <Image source={{ uri: qrUrl }} style={{ width: "100%", height: "100%" }} contentFit="contain" />
+              <ShimmerImage uri={qrUrl} style={{ width: "100%", height: "100%" }} borderRadius={16} />
             </View>
             <View style={s.urlPill}>
               <LinkIcon color={C.subtext} size={14} />
               <Text style={s.urlText} numberOfLines={1}>{url}</Text>
-              <Pressable onPress={() => share("copy")} hitSlop={8}>
-                <Copy color={C.pinkHi} size={16} />
-              </Pressable>
+              <IconButton icon={Copy} onPress={() => share("copy")} size={32} iconSize={16} color={C.pinkHi} variant="ghost" haptic="light" />
             </View>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
               <Chip label="WhatsApp" icon="💬" onPress={() => share("share")} />
@@ -199,6 +217,7 @@ export default function InviteScreen() {
           </View>
 
           {submitted ? (
+            <FadeInView>
             <Card style={{ alignItems: "center", padding: 24, gap: 10, marginTop: 14 }}>
               <View style={s.successCircle}>
                 <Check color={C.text} size={28} />
@@ -212,29 +231,25 @@ export default function InviteScreen() {
               ) : null}
               <GhostButton title="Add another response" onPress={() => { setSubmitted(false); setLastRsvpId(null); }} style={{ marginTop: 4 }} />
             </Card>
+            </FadeInView>
           ) : (
             <Card style={{ gap: 12, marginTop: 14 }}>
-              <Text style={s.label}>Your name</Text>
-              <TextInput
-                placeholder="e.g. Imani"
-                placeholderTextColor={C.mute}
-                value={name}
-                onChangeText={setName}
-                style={s.input}
-              />
+              <TextField label="Your name" placeholder="e.g. Imani" value={name} onChangeText={setName} />
 
               <Text style={s.label}>Will you attend?</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 {(["yes", "maybe", "no"] as const).map((st) => (
-                  <Pressable
+                  <PressableScale
                     key={st}
-                    onPress={() => setStatus(st)}
+                    onPress={() => { triggerHaptic("selection"); setStatus(st); }}
+                    haptic={false}
+                    pressedScale={0.96}
                     style={[s.statusBtn, status === st ? s.statusBtnActive : null]}
                   >
                     <Text style={[s.statusText, status === st ? { color: C.text } : null]}>
                       {st === "yes" ? "Going" : st === "maybe" ? "Maybe" : "Can't"}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 ))}
               </View>
 
@@ -243,50 +258,43 @@ export default function InviteScreen() {
                   <Text style={s.label}>How many of you?</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     {[1, 2, 3, 4].map((g) => (
-                      <Pressable
+                      <PressableScale
                         key={g}
                         onPress={() => setGuests(g)}
+                        haptic="selection"
+                        pressedScale={0.94}
                         style={[s.guestPill, guests === g ? s.guestPillActive : null]}
                       >
                         <Text style={[s.guestPillText, guests === g ? { color: C.text } : null]}>+{g}</Text>
-                      </Pressable>
+                      </PressableScale>
                     ))}
                   </View>
                 </>
               ) : null}
 
-              <Text style={s.label}>
-                Phone number (optional){" "}
-                <Text style={{ color: C.subtext, fontWeight: "400" as const }}>for SMS updates</Text>
-              </Text>
-              <View style={s.phoneRow}>
-                <View style={s.phonePrefix}>
-                  <Phone color={C.subtext} size={14} />
-                </View>
-                <TextInput
-                  placeholder="+1 234 567 8900"
-                  placeholderTextColor={C.mute}
-                  value={phone}
-                  onChangeText={setPhone}
-                  style={s.phoneInput}
-                  keyboardType="phone-pad"
-                />
-              </View>
+              <TextField
+                label="Phone number (optional) — for SMS updates"
+                placeholder="+1 234 567 8900"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                icon={Phone}
+              />
 
-              <Text style={s.label}>Note to host (optional)</Text>
-              <TextInput
+              <TextField
+                label="Note to host (optional)"
                 placeholder="Bringing dancing shoes…"
-                placeholderTextColor={C.mute}
                 value={note}
                 onChangeText={setNote}
-                style={[s.input, { height: 80, textAlignVertical: "top" }]}
                 multiline
+                style={{ height: 80, textAlignVertical: "top" }}
               />
 
               <PrimaryButton title="Submit RSVP" onPress={submit} style={{ marginTop: 8 }} />
             </Card>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
 
       <View style={[s.footer, { paddingBottom: 14 + Math.max(insets.bottom, 6) }]}>

@@ -1,5 +1,4 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -21,6 +20,7 @@ import {
   Alert,
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -31,8 +31,10 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, GhostButton, SectionTitle, Tag } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import { Card, EmptyState, GhostButton, IconButton, PrimaryButton, SectionTitle, Tag, useToast } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { triggerHaptic } from "@/lib/haptics";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
@@ -49,6 +51,7 @@ export default function CheckInScreen() {
   const insets = useSafeAreaInsets();
   const { findById, checkInGuest, rejectGuest } = useEvents();
   const { t, formatTime } = useOnboarding();
+  const toast = useToast();
   const event = findById(id);
 
   const [query, setQuery] = useState<string>("");
@@ -98,19 +101,18 @@ export default function CheckInScreen() {
   const checkIn = useCallback(
     async (rsvpId: string, name: string) => {
       if (!eventId) return;
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      }
+      triggerHaptic("success");
       await checkInGuest(eventId, rsvpId, Date.now());
       setLastChecked({ name, at: Date.now() });
+      toast.success(`${name} checked in`);
       setTimeout(() => setLastChecked(null), 2500);
     },
-    [checkInGuest, eventId]
+    [checkInGuest, eventId, toast]
   );
 
   const reject = async (rsvpId: string) => {
     if (!eventId) return;
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    triggerHaptic("warning");
     await rejectGuest(eventId, rsvpId, rejectionNote.trim() || null);
     setRejectionNote("");
     setRejectingId(null);
@@ -118,13 +120,13 @@ export default function CheckInScreen() {
 
   const undoReject = async (rsvpId: string) => {
     if (!eventId) return;
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     await rejectGuest(eventId, rsvpId, null);
   };
 
   const undo = async (rsvpId: string) => {
     if (!eventId) return;
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     await checkInGuest(eventId, rsvpId, 0);
   };
 
@@ -134,12 +136,12 @@ export default function CheckInScreen() {
       if (!code) return;
       const match = rsvps.find((r) => r.passCode.toUpperCase() === code);
       if (!match) {
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        triggerHaptic("error");
         Alert.alert(t("checkin_pass_not_found_title"), t("checkin_pass_not_found_body", { code }));
         return;
       }
       if (typeof match.checkedInAt === "number") {
-        if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+        triggerHaptic("selection");
         Alert.alert(
           t("checkin_already_title"),
           t("checkin_already_body", { name: match.name, time: formatTime(match.checkedInAt) })
@@ -178,7 +180,13 @@ export default function CheckInScreen() {
   if (!event) {
     return (
       <View style={s.container}>
-        <Text style={{ color: C.text, padding: 30 }}>{t("checkin_event_not_found")}</Text>
+        <Stack.Screen options={{ headerShown: false }} />
+        <EmptyState
+          icon={Users}
+          title={t("checkin_event_not_found")}
+          subtitle=""
+          action={{ label: "Go back", onPress: () => router.back() }}
+        />
       </View>
     );
   }
@@ -192,27 +200,27 @@ export default function CheckInScreen() {
       />
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         <View style={s.topBar}>
-          <Pressable onPress={() => router.back()} style={s.iconBtn} hitSlop={10}>
-            <ChevronLeft color={C.text} size={22} />
-          </Pressable>
-          <View style={{ alignItems: "center" }}>
+          <IconButton icon={ChevronLeft} onPress={() => router.back()} variant="glass" iconSize={22} haptic="light" />
+          <View style={{ alignItems: "center", flex: 1 }}>
             <Text style={s.topKicker}>{t("checkin_kicker")}</Text>
             <Text style={s.topTitle} numberOfLines={1}>{event.name}</Text>
           </View>
-          <Pressable
-            onPress={() => setManualMode((v) => !v)}
-            style={s.iconBtn}
-            hitSlop={10}
-            accessibilityLabel="Toggle manual entry"
-          >
-            <KeyboardIcon color={manualMode ? C.pinkHi : C.text} size={18} />
-          </Pressable>
+          <IconButton
+            icon={KeyboardIcon}
+            onPress={() => { triggerHaptic("selection"); setManualMode((v) => !v); }}
+            variant="glass"
+            iconSize={18}
+            color={manualMode ? C.pinkHi : C.text}
+            haptic={false}
+          />
         </View>
 
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={{ padding: 18, paddingBottom: 40 + Math.max(insets.bottom, 8) }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {/* Live counter */}
           <Card style={s.counterCard}>
@@ -256,10 +264,7 @@ export default function CheckInScreen() {
                   <ScanLine color={C.pinkHi} size={32} />
                   <Text style={s.placeholderTitle}>{t("checkin_camera_unavailable")}</Text>
                   <Text style={s.placeholderSub}>{t("checkin_camera_unavailable_body")}</Text>
-                  <Pressable onPress={() => setManualMode(true)} style={s.placeholderBtn}>
-                    <KeyboardIcon color={C.text} size={14} />
-                    <Text style={s.placeholderBtnText}>{t("checkin_scan_cta")}</Text>
-                  </Pressable>
+                  <PrimaryButton title={t("checkin_scan_cta")} icon={KeyboardIcon} onPress={() => setManualMode(true)} />
                 </View>
               ) : !permission ? (
                 <View style={s.scannerPlaceholder}>
@@ -270,9 +275,7 @@ export default function CheckInScreen() {
                   <ScanLine color={C.pinkHi} size={32} />
                   <Text style={s.placeholderTitle}>{t("checkin_permission_title")}</Text>
                   <Text style={s.placeholderSub}>{t("checkin_permission_body")}</Text>
-                  <Pressable onPress={() => requestPermission()} style={s.placeholderBtn}>
-                    <Text style={s.placeholderBtnText}>{t("checkin_permission_grant")}</Text>
-                  </Pressable>
+                  <PrimaryButton title={t("checkin_permission_grant")} onPress={() => requestPermission()} />
                 </View>
               ) : (
                 <View style={s.scannerCamWrap}>
@@ -431,17 +434,17 @@ export default function CheckInScreen() {
                   ) : null}
                 </View>
                 <View style={{ gap: 6 }}>
-                  <Pressable onPress={() => checkIn(r.id, r.name)} style={s.checkBtn}>
+                  <PressableScale onPress={() => checkIn(r.id, r.name)} haptic="success" pressedScale={0.97} style={s.checkBtn}>
                     <CheckCircle2 color={C.text} size={16} />
                     <Text style={s.checkBtnText}>{t("checkin_scan_cta")}</Text>
-                  </Pressable>
-                  <Pressable
+                  </PressableScale>
+                  <PressableScale
                     onPress={() => { setRejectingId(r.id); setRejectionNote(""); }}
                     style={s.rejectBtn}
                     hitSlop={6}
                   >
                     <Ban color={C.subtext} size={14} />
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
             ))}
@@ -514,6 +517,7 @@ export default function CheckInScreen() {
 
           <GhostButton title={t("checkin_done")} onPress={() => router.back()} style={{ marginTop: 26 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

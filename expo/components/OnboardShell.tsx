@@ -1,14 +1,18 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
-import React, { memo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { memo, useEffect, useRef } from "react";
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FadeInView } from "@/components/feedback/FadeInView";
+import { IconButton } from "@/components/pressable/IconButton";
 import { C } from "@/constants/colors";
+import { S } from "@/constants/spacing";
+import { T } from "@/constants/typography";
 
 interface Props {
-  step: number; // 1-based
+  step: number;
   total: number;
   kicker?: string;
   title: string;
@@ -17,6 +21,27 @@ interface Props {
   footer?: React.ReactNode;
   showBack?: boolean;
   onBack?: () => void;
+}
+
+function ProgressPip({ active }: { active: boolean }) {
+  const opacity = useRef(new Animated.Value(active ? 1 : 0.35)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: active ? 1 : 0.35,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [active, opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.pip,
+        { opacity, backgroundColor: active ? C.pink : C.hair },
+      ]}
+    />
+  );
 }
 
 export const OnboardShell = memo(function OnboardShell({
@@ -36,6 +61,7 @@ export const OnboardShell = memo(function OnboardShell({
     if (onBack) onBack();
     else router.back();
   };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -47,43 +73,49 @@ export const OnboardShell = memo(function OnboardShell({
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
         <View style={styles.topBar}>
           {showBack && step > 1 ? (
-            <Pressable onPress={back} style={styles.topBtn} hitSlop={10}>
-              <ChevronLeft color={C.text} size={22} />
-            </Pressable>
+            <IconButton icon={ChevronLeft} onPress={back} haptic="light" />
           ) : (
-            <View style={styles.topBtn} />
+            <View style={{ width: 42 }} />
           )}
           <View style={styles.progressRow}>
             {Array.from({ length: total }, (_, i) => (
-              <View
-                key={i}
-                style={[styles.pip, { backgroundColor: i < step ? C.pink : C.hair }]}
-              />
+              <ProgressPip key={i} active={i < step} />
             ))}
           </View>
-          <View style={styles.topBtn}>
+          <View style={styles.stepBadge}>
             <Text style={styles.stepCount}>
               {step}/{total}
             </Text>
           </View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={{ padding: 24, paddingBottom: 40, flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={insets.top}
         >
-          {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-          <View style={{ marginTop: 24, flex: 1 }}>{children}</View>
-        </ScrollView>
+          <ScrollView
+            contentContainerStyle={{ padding: S.xxl, paddingBottom: 40, flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
+            <FadeInView delay={40}>
+              {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
+              <Text style={styles.title}>{title}</Text>
+              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            </FadeInView>
+            <FadeInView delay={100} style={{ marginTop: S.xxl, flex: 1 }}>
+              {children}
+            </FadeInView>
+          </ScrollView>
 
-        {footer ? (
-          <View style={[styles.footer, { paddingBottom: 16 + Math.max(insets.bottom, 8) }]}>
-            {footer}
-          </View>
-        ) : null}
+          {footer ? (
+            <View style={[styles.footer, { paddingBottom: S.lg + Math.max(insets.bottom, 8) }]}>
+              {footer}
+            </View>
+          ) : null}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -95,45 +127,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: S.lg - 2,
+    paddingVertical: S.sm,
   },
-  topBtn: {
-    minWidth: 44,
-    height: 36,
+  stepBadge: {
+    minWidth: 42,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 999,
   },
   stepCount: { color: C.mute, fontSize: 12, fontWeight: "700" as const },
-  progressRow: { flexDirection: "row", gap: 5, flex: 1, marginHorizontal: 10 },
+  progressRow: { flexDirection: "row", gap: 5, flex: 1, marginHorizontal: S.sm + 2, height: 3 },
   pip: { flex: 1, height: 3, borderRadius: 4 },
-  kicker: {
-    color: C.pinkHi,
-    letterSpacing: 2.5,
-    fontWeight: "800" as const,
-    fontSize: 11,
-    marginBottom: 10,
-  },
-  title: {
-    color: C.text,
-    fontSize: 34,
-    fontWeight: "800" as const,
-    letterSpacing: -0.8,
-    lineHeight: 38,
-  },
-  subtitle: {
-    color: C.subtext,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
-  },
+  kicker: { ...T.kicker, marginBottom: S.sm + 2 },
+  title: { ...T.screenTitle },
+  subtitle: { ...T.body, marginTop: S.sm + 2 },
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 10,
+    paddingHorizontal: S.xl,
+    paddingTop: S.lg,
+    gap: S.sm + 2,
     borderTopWidth: 1,
     borderTopColor: C.hair,
-    backgroundColor: "rgba(10,10,11,0.92)",
+    backgroundColor: "rgba(10,10,11,0.94)",
   },
 });

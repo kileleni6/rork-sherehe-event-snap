@@ -1,30 +1,33 @@
-import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Camera, Image as ImageIcon, Shield } from "lucide-react-native";
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, View } from "react-native";
 
 import { OnboardShell } from "@/components/OnboardShell";
-import { GhostButton, PrimaryButton } from "@/components/ui";
-import { C } from "@/constants/colors";
+import { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
+import { GhostButton, PrimaryButton, useToast } from "@/components/ui";
+import { triggerHaptic } from "@/lib/haptics";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function PhotosScreen() {
   const router = useRouter();
   const { update, t } = useOnboarding();
+  const toast = useToast();
 
   const enable = async () => {
     try {
       if (Platform.OS !== "web") {
-        Haptics.selectionAsync().catch(() => {});
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        triggerHaptic("light");
+        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (granted) triggerHaptic("success");
+        else triggerHaptic("warning");
       }
     } catch (e) {
       console.log("[photos perm]", e);
     }
     await update({ photosEnabled: true });
+    toast.success(t("photo_title"));
     router.push("/onboarding/interests" as never);
   };
 
@@ -47,47 +50,18 @@ export default function PhotosScreen() {
         </View>
       }
     >
-      <View style={styles.heroRow}>
-        <LinearGradient colors={[C.pinkHi, C.pinkDeep]} style={styles.heroChip}>
-          <Camera color={C.text} size={32} />
-        </LinearGradient>
-        <LinearGradient colors={["#3D0A24", "#1A0410"]} style={styles.heroChip}>
-          <ImageIcon color={C.pinkHi} size={32} />
-        </LinearGradient>
-        <LinearGradient colors={["#F4C97B", "#B68A2E"]} style={styles.heroChip}>
-          <Shield color="#1A1A1A" size={32} />
-        </LinearGradient>
-      </View>
-
-      <View style={styles.privacy}>
-        <Shield color={C.success} size={16} />
-        <Text style={styles.privacyText}>
-          Photos stay in your event's private gallery. You decide when they're revealed.
-        </Text>
-      </View>
+      <PermissionPrompt
+        icon={Camera}
+        iconGradient={["#FF6FA8", "#C71153"]}
+        title={t("photo_title")}
+        subtitle={t("photo_sub")}
+        benefits={[
+          { icon: Camera, title: "Event photos", subtitle: "Capture moments with a limited roll per guest." },
+          { icon: ImageIcon, title: "Cover images", subtitle: "Pick a beautiful invite cover from your library." },
+          { icon: Shield, title: "Private gallery", subtitle: "Photos stay in your event until the host reveals them." },
+        ]}
+        privacyNote="Photos stay in your event's private gallery. You decide when they're revealed."
+      />
     </OnboardShell>
   );
 }
-
-const styles = StyleSheet.create({
-  heroRow: { flexDirection: "row", gap: 12, justifyContent: "center", paddingVertical: 18 },
-  heroChip: {
-    width: 90,
-    height: 110,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  privacy: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-    backgroundColor: "rgba(61,214,140,0.08)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(61,214,140,0.25)",
-    marginTop: 14,
-  },
-  privacyText: { flex: 1, color: C.subtext, fontSize: 13, lineHeight: 19 },
-});

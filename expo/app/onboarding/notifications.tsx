@@ -1,19 +1,19 @@
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Bell, CalendarClock, Lock, MailCheck } from "lucide-react-native";
 import React from "react";
-import { Alert, Platform, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, View } from "react-native";
 
 import { OnboardShell } from "@/components/OnboardShell";
-import { GhostButton, PrimaryButton } from "@/components/ui";
-import { C } from "@/constants/colors";
+import { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
+import { GhostButton, PrimaryButton, useToast } from "@/components/ui";
 import { registerForPushAsync } from "@/lib/notifications";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const { update, t } = useOnboarding();
+  const toast = useToast();
 
   const enable = async () => {
     const reg = await registerForPushAsync();
@@ -23,6 +23,9 @@ export default function NotificationsScreen() {
       ).catch(() => {});
     }
     await update({ notificationsEnabled: reg.granted });
+    if (reg.granted) {
+      toast.success(t("notif_enabled_title"));
+    }
     if (Platform.OS === "web") {
       Alert.alert(t("notif_enabled_title"), t("notif_enabled_body"));
     }
@@ -51,82 +54,17 @@ export default function NotificationsScreen() {
         </View>
       }
     >
-      <View style={styles.heroWrap}>
-        <LinearGradient
-          colors={["rgba(255,45,122,0.18)", "rgba(255,45,122,0)"]}
-          style={styles.heroBg}
-        />
-        <View style={styles.heroIcon}>
-          <Bell color={C.text} size={42} />
-        </View>
-      </View>
-
-      <View style={{ gap: 12, marginTop: 12 }}>
-        {[
-          { i: MailCheck, t: "RSVP reminders", s: "Tap once to confirm or decline." },
-          { i: CalendarClock, t: "Event countdown", s: "Don't miss a moment." },
-          { i: Lock, t: "Gallery unlocked", s: "The instant memories drop." },
-        ].map((row) => {
-          const Icon = row.i;
-          return (
-            <View key={row.t} style={styles.row}>
-              <View style={styles.rowIcon}>
-                <Icon color={C.pinkHi} size={18} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{row.t}</Text>
-                <Text style={styles.rowSub}>{row.s}</Text>
-              </View>
-            </View>
-          );
-        })}
-      </View>
+      <PermissionPrompt
+        icon={Bell}
+        title={t("notif_title")}
+        subtitle={t("notif_sub")}
+        benefits={[
+          { icon: MailCheck, title: "RSVP reminders", subtitle: "Tap once to confirm or decline." },
+          { icon: CalendarClock, title: "Event countdown", subtitle: "Don't miss a moment." },
+          { icon: Lock, title: "Gallery unlocked", subtitle: "The instant memories drop." },
+        ]}
+        privacyNote="You can turn notifications off anytime in Settings."
+      />
     </OnboardShell>
   );
 }
-
-const styles = StyleSheet.create({
-  heroWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 24,
-  },
-  heroBg: {
-    position: "absolute",
-    width: 240,
-    height: 240,
-    borderRadius: 999,
-  },
-  heroIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    backgroundColor: C.pink,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: C.pink,
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    backgroundColor: C.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.hair,
-  },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,45,122,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
-  rowSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
-});

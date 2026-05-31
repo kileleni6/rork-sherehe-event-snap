@@ -1,6 +1,4 @@
 import * as Clipboard from "expo-clipboard";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -20,14 +18,27 @@ import {
   Users,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Easing, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Animated, Easing, Platform, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InvitationCard } from "@/components/InvitationCard";
-import { Card, Hair, PrimaryButton, SectionTitle, Tag } from "@/components/ui";
+import { PressableScale } from "@/components/pressable/PressableScale";
+import {
+  ActionTile,
+  Card,
+  EmptyState,
+  Hair,
+  IconButton,
+  PrimaryButton,
+  SectionTitle,
+  ShimmerImage,
+  Tag,
+  useToast,
+} from "@/components/ui";
 import { C } from "@/constants/colors";
 import { TIME_OF_DAY, timeOfDayFromDate } from "@/constants/templates";
 import { addToCalendar } from "@/lib/calendar";
+import { triggerHaptic } from "@/lib/haptics";
 import { getTemplate, rsvpStats, useEvents } from "@/providers/EventsProvider";
 
 interface Countdown {
@@ -143,6 +154,7 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const { findById, unlockGallery, deleteEvent } = useEvents();
   const event = findById(id);
 
@@ -153,13 +165,19 @@ export default function EventDetailScreen() {
   if (!event || !tpl || !stats) {
     return (
       <View style={s.container}>
-        <Text style={{ color: C.text, padding: 30 }}>Event not found.</Text>
+        <Stack.Screen options={{ headerShown: false }} />
+        <EmptyState
+          icon={Sparkles}
+          title="Event not found"
+          subtitle="It may have been deleted or the link is incorrect."
+          action={{ label: "Go back", onPress: () => router.back() }}
+        />
       </View>
     );
   }
 
   const shareInvite = async () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    triggerHaptic("selection");
     const url = `https://sherehe.app/i/${event.id}`;
     const message = `You're invited to ${event.name} \u2014 ${event.venue}. RSVP: ${url}`;
     try {
@@ -170,7 +188,7 @@ export default function EventDetailScreen() {
           return;
         }
         await Clipboard.setStringAsync(url);
-        Alert.alert("Link copied", `Share this invite link with your guests:\n\n${url}`);
+        toast.success("Invite link copied");
         return;
       }
       const result = await Share.share({ message, url, title: event.name });
@@ -207,22 +225,16 @@ export default function EventDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         <View style={s.coverWrap}>
-          <Image source={{ uri: event.cover }} style={StyleSheet.absoluteFillObject as never} contentFit="cover" />
+          <ShimmerImage uri={event.cover} style={StyleSheet.absoluteFillObject as never} borderRadius={0} />
           <LinearGradient
             colors={["rgba(0,0,0,0.3)", "transparent", "rgba(10,10,11,1)"]}
             style={StyleSheet.absoluteFillObject as never}
           />
           <SafeAreaView edges={["top"]} style={s.coverHeader}>
-            <Pressable onPress={() => router.back()} style={s.headerBtn}>
-              <ChevronLeft color={C.text} size={22} />
-            </Pressable>
+            <IconButton icon={ChevronLeft} onPress={() => router.back()} variant="glass" iconSize={22} haptic="light" />
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable onPress={shareInvite} style={s.headerBtn}>
-                <Share2 color={C.text} size={18} />
-              </Pressable>
-              <Pressable onPress={confirmDelete} style={s.headerBtn}>
-                <Trash2 color={C.text} size={18} />
-              </Pressable>
+              <IconButton icon={Share2} onPress={shareInvite} variant="glass" iconSize={18} haptic="light" />
+              <IconButton icon={Trash2} onPress={confirmDelete} variant="glass" iconSize={18} color={C.danger} haptic="warning" />
             </View>
           </SafeAreaView>
 
@@ -251,35 +263,38 @@ export default function EventDetailScreen() {
           <LiveCountdown ts={event.date} />
 
           <View style={s.actionsRow}>
-            <Pressable onPress={() => router.push(`/invite/${event.id}` as never)} style={s.actionBtn}>
-              <View style={[s.actionIcon, { backgroundColor: "rgba(255,45,122,0.18)" }]}>
-                <Send color={C.pinkHi} size={18} />
-              </View>
-              <Text style={s.actionTitle}>Share invite</Text>
-              <Text style={s.actionSub}>QR · Link</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push(`/camera/${event.id}` as never)} style={s.actionBtn}>
-              <View style={[s.actionIcon, { backgroundColor: "rgba(244,201,123,0.18)" }]}>
-                <CameraIcon color={C.gold} size={18} />
-              </View>
-              <Text style={s.actionTitle}>Open camera</Text>
-              <Text style={s.actionSub}>{event.photos.length}/{event.shotsPerGuest}</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push(`/gallery/${event.id}` as never)} style={s.actionBtn}>
-              <View style={[s.actionIcon, { backgroundColor: "rgba(61,214,140,0.18)" }]}>
-                {galleryUnlocked ? <Unlock color={C.success} size={18} /> : <Lock color={C.success} size={18} />}
-              </View>
-              <Text style={s.actionTitle}>Gallery</Text>
-              <Text style={s.actionSub}>{galleryUnlocked ? "Open" : "Locked"}</Text>
-            </Pressable>
+            <ActionTile
+              icon={Send}
+              iconBg="rgba(255,45,122,0.18)"
+              iconColor={C.pinkHi}
+              title="Share invite"
+              subtitle="QR · Link"
+              onPress={() => router.push(`/invite/${event.id}` as never)}
+            />
+            <ActionTile
+              icon={CameraIcon}
+              iconBg="rgba(244,201,123,0.18)"
+              iconColor={C.gold}
+              title="Open camera"
+              subtitle={`${event.photos.length}/${event.shotsPerGuest}`}
+              onPress={() => router.push(`/camera/${event.id}` as never)}
+            />
+            <ActionTile
+              icon={galleryUnlocked ? Unlock : Lock}
+              iconBg="rgba(61,214,140,0.18)"
+              iconColor={C.success}
+              title="Gallery"
+              subtitle={galleryUnlocked ? "Open" : "Locked"}
+              onPress={() => router.push(`/gallery/${event.id}` as never)}
+            />
           </View>
 
           <View style={s.sectionRow}>
             <SectionTitle>Invitation</SectionTitle>
-            <Pressable onPress={() => router.push(`/invite/${event.id}` as never)} style={s.linkBtn}>
+            <PressableScale onPress={() => router.push(`/invite/${event.id}` as never)} haptic="selection" style={s.linkBtn}>
               <Edit3 color={C.pinkHi} size={14} />
               <Text style={s.linkText}>Customize</Text>
-            </Pressable>
+            </PressableScale>
           </View>
           <InvitationCard event={event} template={tpl} compact />
 
@@ -336,8 +351,10 @@ export default function EventDetailScreen() {
           </Card>
 
           {event.checkInEnabled ? (
-            <Pressable
+            <PressableScale
               onPress={() => router.push(`/checkin/${event.id}` as never)}
+              haptic="light"
+              pressedScale={0.99}
               style={s.checkinBanner}
             >
               <LinearGradient
@@ -357,7 +374,7 @@ export default function EventDetailScreen() {
                 </Text>
               </View>
               <Text style={s.checkinBannerCta}>Open</Text>
-            </Pressable>
+            </PressableScale>
           ) : null}
 
           <View style={s.sectionRow}>
@@ -387,21 +404,25 @@ export default function EventDetailScreen() {
                 </Text>
               </View>
               {!galleryUnlocked ? (
-                <Pressable
+                <PressableScale
                   onPress={() => {
-                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                    triggerHaptic("success");
                     unlockGallery(event.id);
+                    toast.success("Gallery unlocked");
                   }}
+                  haptic={false}
+                  pressedScale={0.96}
                   style={s.smallBtn}
                 >
                   <Text style={s.smallBtnText}>Unlock now</Text>
-                </Pressable>
+                </PressableScale>
               ) : null}
             </View>
           </Card>
 
-          <Pressable
-            onPress={() =>
+          <PressableScale
+            onPress={() => {
+              triggerHaptic("selection");
               addToCalendar({
                 id: event.id,
                 title: event.name,
@@ -409,14 +430,15 @@ export default function EventDetailScreen() {
                 venue: event.venue,
                 description: event.message,
                 url: `https://sherehe.app/i/${event.id}`,
-              })
-            }
+              });
+            }}
+            haptic={false}
             style={s.calRow}
           >
             <CalendarIcon color={C.gold} size={18} />
             <Text style={s.calRowText}>Add to my calendar</Text>
             <Text style={s.calRowHint}>iCal · Google</Text>
-          </Pressable>
+          </PressableScale>
 
           {event.schedule.length > 0 ? (
             <>

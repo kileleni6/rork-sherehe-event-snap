@@ -3,24 +3,45 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { LucideIcon } from "lucide-react-native";
 import React, { memo } from "react";
 import {
-  Pressable,
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
   type StyleProp,
-  type ViewStyle,
   type TextStyle,
+  type ViewStyle,
 } from "react-native";
 
+import { PressableScale } from "@/components/pressable/PressableScale";
 import { C } from "@/constants/colors";
+import { R, S } from "@/constants/spacing";
+import { T } from "@/constants/typography";
+import type { HapticKind } from "@/lib/haptics";
+
+// Re-export premium UI primitives
+export { PressableScale } from "@/components/pressable/PressableScale";
+export { IconButton } from "@/components/pressable/IconButton";
+export { ListRow } from "@/components/pressable/ListRow";
+export { EmptyState } from "@/components/feedback/EmptyState";
+export { Skeleton, EventRowSkeleton, HeroSkeleton } from "@/components/feedback/Skeleton";
+export { FadeInView } from "@/components/feedback/FadeInView";
+export { ShimmerImage } from "@/components/feedback/ShimmerImage";
+export { ToastProvider, useToast, ToastActionButton } from "@/components/feedback/Toast";
+export { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
+export { TextField } from "@/components/ui/TextField";
+export { KeyboardAwareScroll } from "@/components/ui/KeyboardAwareScroll";
+export { ScreenHeader } from "@/components/ui/ScreenHeader";
+export { ActionTile } from "@/components/ui/ActionTile";
 
 interface PrimaryButtonProps {
   title: string;
   onPress?: () => void;
   icon?: LucideIcon;
   disabled?: boolean;
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  haptic?: HapticKind | false;
 }
 
 export const PrimaryButton = memo(function PrimaryButton({
@@ -28,19 +49,19 @@ export const PrimaryButton = memo(function PrimaryButton({
   onPress,
   icon: Icon,
   disabled,
+  loading,
   style,
   testID,
+  haptic = "light",
 }: PrimaryButtonProps) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}
+      haptic={haptic}
+      pressedScale={0.98}
       testID={testID}
-      style={({ pressed }) => [
-        styles.btnWrap,
-        { opacity: disabled ? 0.5 : pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        style,
-      ]}
+      style={[styles.btnWrap, style]}
     >
       <LinearGradient
         colors={[C.pinkHi, C.pink, C.pinkDeep]}
@@ -48,10 +69,14 @@ export const PrimaryButton = memo(function PrimaryButton({
         end={{ x: 1, y: 1 }}
         style={styles.btn}
       >
-        {Icon ? <Icon color={C.text} size={18} /> : null}
-        <Text style={styles.btnText}>{title}</Text>
+        {loading ? (
+          <ActivityIndicator color={C.text} size="small" />
+        ) : Icon ? (
+          <Icon color={C.text} size={18} />
+        ) : null}
+        <Text style={styles.btnText}>{loading ? "…" : title}</Text>
       </LinearGradient>
-    </Pressable>
+    </PressableScale>
   );
 });
 
@@ -60,6 +85,7 @@ interface GhostButtonProps {
   onPress?: () => void;
   icon?: LucideIcon;
   style?: StyleProp<ViewStyle>;
+  haptic?: HapticKind | false;
 }
 
 export const GhostButton = memo(function GhostButton({
@@ -67,25 +93,38 @@ export const GhostButton = memo(function GhostButton({
   onPress,
   icon: Icon,
   style,
+  haptic = "selection",
 }: GhostButtonProps) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={({ pressed }) => [styles.ghost, { opacity: pressed ? 0.85 : 1 }, style]}
+      haptic={haptic}
+      pressedScale={0.98}
+      pressedOpacity={0.88}
+      style={[styles.ghost, style]}
     >
       {Icon ? <Icon color={C.text} size={18} /> : null}
       <Text style={styles.ghostText}>{title}</Text>
-    </Pressable>
+    </PressableScale>
   );
 });
 
 export const Card = memo(function Card({
   children,
   style,
+  onPress,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
 }) {
+  if (onPress) {
+    return (
+      <PressableScale onPress={onPress} haptic="selection" pressedScale={0.99} style={[styles.card, style]}>
+        {children}
+      </PressableScale>
+    );
+  }
   return <View style={[styles.card, style]}>{children}</View>;
 });
 
@@ -101,17 +140,15 @@ export const Chip = memo(function Chip({
   icon?: string;
 }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.chip,
-        active ? styles.chipActive : null,
-        { opacity: pressed ? 0.85 : 1 },
-      ]}
+      haptic="selection"
+      pressedScale={0.96}
+      style={[styles.chip, active ? styles.chipActive : null]}
     >
       {icon ? <Text style={styles.chipEmoji}>{icon}</Text> : null}
       <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 });
 
@@ -148,12 +185,12 @@ export function Tag({ label, tone = "pink" }: { label: string; tone?: "pink" | "
 
 const styles = StyleSheet.create({
   btnWrap: {
-    borderRadius: 999,
+    borderRadius: R.pill,
     overflow: "hidden",
     shadowColor: C.pink,
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
   },
   btn: {
     paddingVertical: 16,
@@ -161,7 +198,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: S.sm,
   },
   btnText: {
     color: C.text,
@@ -170,13 +207,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   ghost: {
-    borderRadius: 999,
+    borderRadius: R.pill,
     paddingVertical: 14,
     paddingHorizontal: 22,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: S.sm,
     borderWidth: 1,
     borderColor: C.hair,
     backgroundColor: "rgba(255,255,255,0.03)",
@@ -188,15 +225,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: C.card,
-    borderRadius: 24,
-    padding: 18,
+    borderRadius: R.xxl,
+    padding: S.lg + 2,
     borderWidth: 1,
     borderColor: C.hair,
   },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 999,
+    borderRadius: R.pill,
     backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: C.hair,
@@ -213,21 +250,16 @@ const styles = StyleSheet.create({
   chipTextActive: { color: C.text },
   glassBar: {
     overflow: "hidden",
-    borderRadius: 24,
+    borderRadius: R.xxl,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  sectionTitle: {
-    color: C.text,
-    fontSize: 20,
-    fontWeight: "800" as const,
-    letterSpacing: -0.3,
-  },
-  hair: { height: 1, backgroundColor: C.hair, marginVertical: 8 },
+  sectionTitle: { ...T.sectionTitle },
+  hair: { height: 1, backgroundColor: C.hair, marginVertical: S.sm },
   tag: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
+    borderRadius: R.pill,
     alignSelf: "flex-start",
   },
   tagText: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4, textTransform: "uppercase" },
