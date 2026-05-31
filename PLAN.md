@@ -24,3 +24,11 @@
 - [x] Paywall CTA navigates to the new Plan Detail screen instead of triggering purchase directly
 - [x] Plan Detail screen's "Pay" button triggers the actual RevenueCat purchase flow
 - [x] Back navigation returns to the paywall tier selection
+
+### 4. Fix onboarding paywall to use RevenueCat flow ✅
+- [x] Onboarding paywall was bypassing RevenueCat entirely — just setting premium and jumping to auth
+- [x] Now routes through Plan Detail like the main paywall, with a `fromOnboarding` param for correct post-purchase navigation to the auth screen
+
+### 5. Enable RevenueCat native SDK in dev builds ✅
+- [x] Previously returned null in both Expo Go AND dev builds (`__DEV__`), making sandbox purchases impossible
+- [x] Now only mocks in Expo Go (where the native module doesn't exist); dev builds on device/simulator load the real RevenueCat SDK so StoreKit/Play sandbox purchases work

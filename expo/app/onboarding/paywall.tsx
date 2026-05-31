@@ -46,7 +46,7 @@ const PERKS = [
 export default function OnboardingPaywallScreen() {
   const router = useRouter();
   const { t } = useOnboarding();
-  const { setProfile, retentionDays } = useEvents();
+  const { retentionDays } = useEvents();
   const { guestTier } = useLocalSearchParams<{ guestTier: string }>();
 
   // Pre-select the tier based on guest count from onboarding, if available
@@ -66,17 +66,32 @@ export default function OnboardingPaywallScreen() {
   }, [shine]);
   const shimmer = shine.interpolate({ inputRange: [0, 1], outputRange: [-200, 260] });
 
-  const goAuth = async (premium: boolean) => {
+  const selected = TIERS.find((t) => t.id === tier);
+
+  const subscribe = () => {
+    if (!selected) return;
+    // Free tier: no purchase needed — go straight to auth
+    if (selected.free) {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      router.push("/onboarding/auth" as never);
+      return;
+    }
+    // Paid tier: show plan-detail confirmation, then purchase
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    router.push({
+      pathname: "/plan-detail" as never,
+      params: { tier: selected.id, fromOnboarding: "1" } as never,
+    });
+  };
+
+  const skip = () => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-    if (premium) await setProfile({ premium: true });
     router.push("/onboarding/auth" as never);
   };
-
-  const selected = TIERS.find((t) => t.id === tier);
-  const subscribe = () => goAuth(!(selected?.free));
-  const skip = () => goAuth(false);
   const ctaTitle = selected?.free
     ? t("paywall_cta_start_free", { name: selected.name })
     : t("paywall_cta_unlock", { name: selected?.name ?? "", price: selected?.price ?? "" });

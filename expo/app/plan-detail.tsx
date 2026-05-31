@@ -76,7 +76,7 @@ const ALL_FEATURES: PlanFeature[] = [
 export default function PlanDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tier: tierId } = useLocalSearchParams<{ tier: string }>();
+  const { tier: tierId, fromOnboarding } = useLocalSearchParams<{ tier: string; fromOnboarding?: string }>();
   const { setProfile } = useEvents();
   const { t } = useOnboarding();
   const [purchasing, setPurchasing] = useState<boolean>(false);
@@ -116,9 +116,14 @@ export default function PlanDetailScreen() {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         await setProfile({ premium: true });
         if (result.mocked && Platform.OS !== "web") {
-          console.log("[plan-detail] mock unlock (Expo Go)");
+          console.log("[plan-detail] mock unlock (Expo Go / dev)");
         }
-        router.dismissAll();
+        // When coming from onboarding, continue to auth screen instead of dismissing
+        if (fromOnboarding === "1") {
+          router.replace("/onboarding/auth" as never);
+        } else {
+          router.dismissAll();
+        }
       } else if (result.error === "user_cancelled") {
         // silent — user backed out of the native sheet
       } else {
