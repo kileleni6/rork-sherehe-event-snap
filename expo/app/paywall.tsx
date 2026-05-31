@@ -1,12 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import { Building2, Check, Crown, HardDrive, Mail, Sparkles, Users, X } from "lucide-react-native";
+import { Building2, Check, Crown, Mail, Sparkles, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PressableScale } from "@/components/pressable/PressableScale";
-import { FadeInView, GhostButton, IconButton, PrimaryButton, useToast } from "@/components/ui";
+import { FadeInView, GhostButton, IconButton, PrimaryButton } from "@/components/ui";
 import { C } from "@/constants/colors";
 import { triggerHaptic } from "@/lib/haptics";
 import { configurePurchases, isPurchasesAvailable, restorePurchases } from "@/lib/purchases";
@@ -47,7 +47,6 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { setProfile, profile } = useEvents();
   const { t } = useOnboarding();
-  const toast = useToast();
   const [tier, setTier] = useState<TierId>("celebration");
   const [restoring, setRestoring] = useState<boolean>(false);
   useEffect(() => {
