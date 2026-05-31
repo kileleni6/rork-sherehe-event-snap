@@ -121,6 +121,7 @@ function RootLayoutNav() {
       <Stack.Screen name="pass/[id]" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="checkin/[id]" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="plan-detail" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }
