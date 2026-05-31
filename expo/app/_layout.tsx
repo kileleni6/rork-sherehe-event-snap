@@ -85,6 +85,10 @@ if (typeof globalThis !== "undefined") {
   }
 }
 
+/** Screens that are reachable during onboarding but live outside the
+ *  onboarding route group — the gate must not redirect away from them. */
+const ONBOARDING_ADJACENT = new Set(["plan-detail", "paywall"]);
+
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { completed, isLoading } = useOnboarding();
   const router = useRouter();
@@ -92,7 +96,8 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading) return;
-    const inOnboarding = segments[0] === "onboarding";
+    const segment = segments[0] ?? "";
+    const inOnboarding = segment === "onboarding" || ONBOARDING_ADJACENT.has(segment);
     if (!completed && !inOnboarding) {
       router.replace("/onboarding" as never);
     }
