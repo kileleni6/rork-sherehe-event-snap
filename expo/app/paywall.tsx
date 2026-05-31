@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import { Building2, Check, Crown, HardDrive, Mail, Sparkles, Tag as TagIcon, Users, X } from "lucide-react-native";
+import { Building2, Check, Crown, HardDrive, Mail, Sparkles, Users, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,7 +44,7 @@ export type { TierId, Tier };
 export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { setProfile, profile, retentionDays } = useEvents();
+  const { setProfile, profile } = useEvents();
   const { t } = useOnboarding();
   const [tier, setTier] = useState<TierId>("celebration");
   const [restoring, setRestoring] = useState<boolean>(false);
@@ -159,37 +159,6 @@ export default function PaywallScreen() {
             <Sparkles color={C.gold} size={30} />
             <Text style={ps.heroTitle}>{t("paywall_hero_title")}</Text>
             <Text style={ps.heroSub}>{t("paywall_hero_sub")}</Text>
-          </View>
-
-          {/* How pricing works */}
-          <View style={ps.howCard}>
-            <Text style={ps.howTitle}>{t("paywall_intro_title")}</Text>
-            <Text style={ps.howBody}>{t("paywall_intro_p1")}</Text>
-            <Text style={ps.howBody}>{t("paywall_intro_p2")}</Text>
-
-            <View style={ps.howRow}>
-              <View style={ps.howIcon}><Users color={C.pinkHi} size={14} /></View>
-              <Text style={ps.howRowText}>{t("paywall_bullet_guests")}</Text>
-            </View>
-            <View style={ps.howRow}>
-              <View style={ps.howIcon}><Sparkles color={C.gold} size={14} /></View>
-              <Text style={ps.howRowText}>{t("paywall_bullet_features")}</Text>
-            </View>
-            <View style={ps.howRow}>
-              <View style={ps.howIcon}><HardDrive color={C.success} size={14} /></View>
-              <Text style={ps.howRowText}>{t("paywall_bullet_storage")}</Text>
-            </View>
-            <View style={ps.howRow}>
-              <View style={ps.howIcon}><TagIcon color={C.text} size={14} /></View>
-              <Text style={ps.howRowText}>{t("paywall_bullet_event")}</Text>
-            </View>
-
-            <View style={ps.retentionBadge}>
-              <HardDrive color={C.subtext} size={12} />
-              <Text style={ps.retentionText}>
-                {t("paywall_storage_note", { days: retentionDays })}
-              </Text>
-            </View>
           </View>
 
           <Text style={ps.sectionLabel}>{t("paywall_select_tier")}</Text>
@@ -334,34 +303,6 @@ const ps = StyleSheet.create({
   hero: { alignItems: "center", gap: 10, marginTop: 8 },
   heroTitle: { color: C.text, fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.7, textAlign: "center" },
   heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 14, textAlign: "center", lineHeight: 20, paddingHorizontal: 14 },
-
-  howCard: {
-    marginTop: 22,
-    padding: 18,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    gap: 10,
-  },
-  howTitle: { color: C.text, fontSize: 16, fontWeight: "800" as const, letterSpacing: -0.2 },
-  howBody: { color: "rgba(255,255,255,0.78)", fontSize: 13, lineHeight: 19 },
-  howRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 4 },
-  howIcon: {
-    width: 24, height: 24, borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    alignItems: "center", justifyContent: "center",
-    marginTop: 1,
-  },
-  howRowText: { color: C.text, fontSize: 13, lineHeight: 18, flex: 1, fontWeight: "500" as const },
-  retentionBadge: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 10, paddingVertical: 8, marginTop: 6,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 10,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  retentionText: { color: C.subtext, fontSize: 11, lineHeight: 15, flex: 1 },
 
   sectionLabel: { color: C.text, fontSize: 13, fontWeight: "800" as const, letterSpacing: 1.5, marginTop: 22, marginBottom: 10 },
 
