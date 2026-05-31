@@ -93,25 +93,28 @@ export async function generateInvitationMessage(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new Error("AI request timed out")), TIMEOUT_MS);
 
-    const response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL_ID,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.85,
-        max_tokens: 250,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
+    let response: Response;
+    try {
+      response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL_ID,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.85,
+          max_tokens: 250,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");

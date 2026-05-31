@@ -9,6 +9,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Platform } from "react-native";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EventsProvider } from "@/providers/EventsProvider";
 import { OnboardingProvider, useOnboarding } from "@/providers/OnboardingProvider";
 
@@ -16,36 +17,69 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-/**
- * Catch unhandled promise rejections from third-party libraries (PostHog
- * analytics, AI SDK, etc.) so they don't surface as red-box crashes in dev
- * or full-screen error-boundary fallbacks.
- */
-if (typeof globalThis !== "undefined") {
-  const trackingError = (e: unknown) => {
-    const msg = e instanceof Error ? e.message : String(e ?? "");
-    // Suppress cosmetic network blips that are already handled elsewhere.
-    if (
-      msg === "Failed to fetch" ||
-      msg === "Network request failed" ||
-      msg === "Request timed out" ||
-      msg === "AbortError" ||
-      msg.includes("AbortError") ||
-      msg === "signal is aborted without reason"
-    ) {
-      console.log("[app] suppressed unhandled rejection:", msg);
-      return;
-    }
-    console.warn("[app] unhandled promise rejection:", msg);
-  };
+// ---------------------------------------------------------------------------
+// Global error suppression — prevents transient network blips from surfacing
+// as red-box crashes or full-screen error-boundary fallbacks.
+// ---------------------------------------------------------------------------
 
-  // Web / React Native both support this as of Hermes 0.12+
+const NETWORK_ERRORS = new Set([
+  "Failed to fetch",
+  "Network request failed",
+  "Request timed out",
+  "AbortError",
+  "signal is aborted without reason",
+  "The operation was aborted.",
+  "The request timed out.",
+]);
+
+function isSuppressedMessage(msg: unknown): boolean {
+  if (typeof msg !== "string") return false;
+  if (NETWORK_ERRORS.has(msg)) return true;
+  // Also match any message containing "AbortError" or "timed out"
+  if (msg.includes("AbortError")) return true;
+  if (msg.includes("timed out")) return true;
+  if (msg.includes("Network request failed")) return true;
+  return false;
+}
+
+function handleGlobalRejection(e: unknown): void {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (isSuppressedMessage(msg)) {
+    console.log("[app] suppressed rejection:", msg);
+    return;
+  }
+  console.warn("[app] unhandled promise rejection:", msg);
+}
+
+if (typeof globalThis !== "undefined") {
+  // 1. Standard unhandledrejection (works in modern Hermes & web)
   if (typeof globalThis.addEventListener === "function") {
     globalThis.addEventListener("unhandledrejection", (event: Event) => {
-      const e = event as Event & { reason?: unknown };
-      if (e.reason) {
-        e.preventDefault?.();
-        trackingError(e.reason);
+      const e = event as Event & { reason?: unknown; promise?: Promise<unknown> };
+      if (e.reason !== undefined) {
+        try { e.preventDefault?.(); } catch { /* nop */ }
+        handleGlobalRejection(e.reason);
+      }
+    });
+  }
+
+  // 2. React Native legacy ErrorUtils fallback (Hermes may not fire unhandledrejection)
+  const g = globalThis as Record<string, unknown>;
+  const errorUtils = g.ErrorUtils as { setGlobalHandler?: (fn: (error: Error, isFatal: boolean) => void) => void } | undefined;
+  if (errorUtils?.setGlobalHandler) {
+    const prevHandler = (g.ErrorUtils as Record<string, unknown>)._globalHandler as
+      | ((error: Error, isFatal: boolean) => void)
+      | undefined;
+    errorUtils.setGlobalHandler((error: Error, isFatal: boolean) => {
+      if (isSuppressedMessage(error.message)) {
+        console.log("[app] suppressed global error:", error.message);
+        return;
+      }
+      // Forward to the original handler for genuine errors
+      if (prevHandler && !isSuppressedMessage(error.message)) {
+        prevHandler(error, isFatal);
+      } else {
+        console.warn("[app] global error:", error.message, isFatal);
       }
     });
   }
@@ -98,17 +132,19 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <OnboardingProvider>
-        <EventsProvider>
-          <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0B" }}>
-            <StatusBar style="light" />
-            <OnboardingGate>
-              <RootLayoutNav />
-            </OnboardingGate>
-          </GestureHandlerRootView>
-        </EventsProvider>
-      </OnboardingProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <OnboardingProvider>
+          <EventsProvider>
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0B" }}>
+              <StatusBar style="light" />
+              <OnboardingGate>
+                <RootLayoutNav />
+              </OnboardingGate>
+            </GestureHandlerRootView>
+          </EventsProvider>
+        </OnboardingProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

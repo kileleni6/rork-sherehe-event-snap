@@ -64,10 +64,34 @@ function extFromContentType(contentType: string): string {
   return "jpg";
 }
 
-async function uriToBlob(uri: string): Promise<Blob> {
-  const res = await fetch(uri);
-  if (!res.ok) throw new Error(`Failed to read photo from ${uri} (${res.status})`);
-  return await res.blob();
+async function uriToBlob(uri: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(uri);
+    if (!res.ok) {
+      console.log(`[storage] fetch photo ${res.status} from ${uri.slice(0, 60)}`);
+      return null;
+    }
+    return await res.blob();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[storage] uriToBlob error:", msg);
+    return null;
+  }
+}
+
+async function safeFetchArrayBuffer(uri: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(uri);
+    if (!res.ok) {
+      console.log(`[storage] fetch arrayBuffer ${res.status} from ${uri.slice(0, 60)}`);
+      return null;
+    }
+    return await res.arrayBuffer();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[storage] safeFetchArrayBuffer error:", msg);
+    return null;
+  }
 }
 
 /**
@@ -84,9 +108,16 @@ export async function uploadEventPhoto(opts: UploadOptions): Promise<UploadedPho
     const ext = extFromContentType(contentType);
     const storagePath = `${eventId}/${photoId}.${ext}`;
 
-    const body: Blob | ArrayBuffer = Platform.OS === "web"
-      ? await uriToBlob(uri)
-      : await (await fetch(uri)).arrayBuffer();
+    const rawBody: Blob | ArrayBuffer | null = Platform.OS === "web"
+      ? (await uriToBlob(uri))
+      : (await safeFetchArrayBuffer(uri));
+
+    if (!rawBody) {
+      console.log("[storage] failed to fetch photo binary, skipping upload");
+      return null;
+    }
+
+    const body = rawBody;
 
     const { error } = await supabase.storage
       .from(EVENT_PHOTOS_BUCKET)
