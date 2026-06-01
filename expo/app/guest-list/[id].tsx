@@ -99,13 +99,16 @@ export default function GuestListScreen() {
     );
   }
 
+  const hasContact = email.trim() || phone.trim();
+  const canAdd = name.trim() && hasContact;
+
   const addGuest = () => {
     const trimmed = name.trim();
-    if (!trimmed && !email.trim() && !phone.trim()) return;
+    if (!trimmed || !hasContact) return;
     triggerHaptic("selection");
     setGuests((prev) => [
       ...prev,
-      { id: `g_${Date.now()}`, name: trimmed || "Guest", email: email.trim(), phone: phone.trim() },
+      { id: `g_${Date.now()}`, name: trimmed, email: email.trim(), phone: phone.trim() },
     ]);
     setName("");
     setEmail("");
@@ -321,8 +324,11 @@ export default function GuestListScreen() {
                   onChangeText={setName}
                   icon={Users}
                 />
+                <Text style={s.contactRequired}>
+                  Contact — at least one required
+                </Text>
                 <TextField
-                  label="Email (for Resend)"
+                  label="Email (optional)"
                   placeholder="zuri@example.com"
                   value={email}
                   onChangeText={setEmail}
@@ -331,7 +337,7 @@ export default function GuestListScreen() {
                   icon={Mail}
                 />
                 <TextField
-                  label="Phone (for SMS via Twilio)"
+                  label="Phone (optional)"
                   placeholder="+1 234 567 8900"
                   value={phone}
                   onChangeText={setPhone}
@@ -342,7 +348,7 @@ export default function GuestListScreen() {
                   onPress={addGuest}
                   haptic="selection"
                   pressedScale={0.97}
-                  style={[s.addBtn, { opacity: name.trim() || email.trim() || phone.trim() ? 1 : 0.4 }]}
+                  style={[s.addBtn, { opacity: canAdd ? 1 : 0.4 }]}
                 >
                   <Plus color={C.text} size={18} />
                   <Text style={s.addBtnText}>Add guest</Text>
@@ -519,6 +525,16 @@ const s = StyleSheet.create({
   },
   headerTitle: { color: C.text, fontWeight: "700" as const, fontSize: 16 },
   muteSub: { color: C.subtext, fontSize: 13, marginTop: 6 },
+  contactRequired: {
+    color: C.gold,
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
+    marginTop: 14,
+    marginBottom: -2,
+    marginLeft: 2,
+  },
   eventSummary: { padding: 14 },
   eventIcon: {
     width: 44,
