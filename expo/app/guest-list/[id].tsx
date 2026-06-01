@@ -78,6 +78,7 @@ export default function GuestListScreen() {
   const [phase, setPhase] = useState<SendPhase>("idle");
   const [sent, setSent] = useState<number>(0);
   const [failed, setFailed] = useState<number>(0);
+  const [addError, setAddError] = useState<string>("");
   const animProgress = useRef(new Animated.Value(0)).current;
 
   const tpl = useMemo(() => (event ? getTemplate(event.template) : undefined), [event]);
@@ -104,7 +105,16 @@ export default function GuestListScreen() {
 
   const addGuest = () => {
     const trimmed = name.trim();
-    if (!trimmed || !hasContact) return;
+    if (!trimmed) {
+      setAddError("Please enter a guest name.");
+      triggerHaptic("light");
+      return;
+    }
+    if (!hasContact) {
+      setAddError("Please enter an email or phone number.");
+      triggerHaptic("light");
+      return;
+    }
     triggerHaptic("selection");
     setGuests((prev) => [
       ...prev,
@@ -113,6 +123,7 @@ export default function GuestListScreen() {
     setName("");
     setEmail("");
     setPhone("");
+    setAddError("");
   };
 
   const removeGuest = (gid: string) => {
@@ -344,10 +355,14 @@ export default function GuestListScreen() {
                   keyboardType="phone-pad"
                   icon={Phone}
                 />
+                {addError ? (
+                  <Text style={s.addError}>{addError}</Text>
+                ) : null}
                 <PressableScale
                   onPress={addGuest}
                   haptic="selection"
                   pressedScale={0.97}
+                  disabled={!canAdd}
                   style={[s.addBtn, { opacity: canAdd ? 1 : 0.4 }]}
                 >
                   <Plus color={C.text} size={18} />
@@ -557,6 +572,7 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   addBtnText: { color: C.text, fontWeight: "700" as const, fontSize: 15 },
+  addError: { color: C.danger, fontSize: 12, fontWeight: "600" as const, marginTop: 8, marginBottom: -2, textAlign: "center" },
   guestCount: { color: C.gold, fontSize: 12, fontWeight: "700" as const },
   guestGrid: { gap: 8 },
   guestChip: {
