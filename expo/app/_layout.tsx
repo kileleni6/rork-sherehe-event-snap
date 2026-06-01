@@ -128,6 +128,7 @@ function RootLayoutNav() {
       <Stack.Screen name="checkin/[id]" options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
       <Stack.Screen name="plan-detail" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="guest-list/[id]" options={{ headerTransparent: true, headerTitle: "", animation: "fade_from_bottom" }} />
     </Stack>
   );
 }

@@ -1,34 +1,35 @@
-# Separate Enterprise plan & add Plan Detail confirmation screen
+# Add Guest List with branded Resend/Twilio invitations
 
+## What we'll build
 
-## What we'll change
+### 1. A Guest List screen after event creation
 
-### 1. Separate the Enterprise plan visually on the paywall ✅
-- [x] Keep the existing 6 tiers (Starter through Super Event at $499.99) as they are
-- [x] Remove the "Mega Event" tier from the flat tier list
-- [x] Add a clearly separated "Custom Enterprise" section below the regular tiers with its own heading, different card styling, and distinct messaging
-- [x] The Enterprise card will show "2,000+ guests", "Dedicated support", "Custom pricing" with a "Contact Us" button that opens email
-- [x] Visual separation through a section divider, different background treatment, and enterprise-oriented copy
+- [x] After the host finishes creating their event, instead of just landing on the event detail screen, they'll see a new "Share invitations" step where they can enter guests' names, emails, and phone numbers — then send beautiful branded invitations via email (Resend) and SMS (Twilio) with one tap.
 
-### 2. Build a Plan Detail confirmation screen ✅
-- [x] After a user selects a paid tier and taps the CTA, show a new screen explaining exactly what they're getting
-- [x] Shows the plan name, price, guest capacity, and storage at the top in a hero card
-- [x] Clear feature checklist: premium invitation templates, HD photo exports, custom branding, RSVP analytics, AI invitation writer, priority support
-- [x] Pricing details: "One-time payment — no subscription, no auto-renewal" and "You'll confirm via Apple or Google Pay on the next screen"
-- [x] A reassuring trust badge: "Secure payment · Cancel anytime before confirming · 30-day storage included"
-- [x] Bottom has the purchase button ("Pay $24.99 — One Time") and a "Go back to plans" link
-- [x] For the free Starter plan, simply confirms "You're all set!" and returns to the app
-- [x] For the Enterprise plan, shows the contact-us flow with email details
+### 2. Guest entry form
 
-### 3. Wire the new flow ✅
-- [x] Paywall CTA navigates to the new Plan Detail screen instead of triggering purchase directly
-- [x] Plan Detail screen's "Pay" button triggers the actual RevenueCat purchase flow
-- [x] Back navigation returns to the paywall tier selection
+- [x] Simple form with name, email, and phone fields
+- [x] Quick "Add guest" button to build the list
+- [x] Each added guest appears as a removable chip in a visual list
+- [x] A counter shows how many guests are in the list
+- [x] "Skip for now" option for hosts who want to share later
 
-### 4. Fix onboarding paywall to use RevenueCat flow ✅
-- [x] Onboarding paywall was bypassing RevenueCat entirely — just setting premium and jumping to auth
-- [x] Now routes through Plan Detail like the main paywall, with a `fromOnboarding` param for correct post-purchase navigation to the auth screen
+### 3. Branded sending with progress
 
-### 5. Enable RevenueCat native SDK in dev builds ✅
-- [x] Previously returned null in both Expo Go AND dev builds (`__DEV__`), making sandbox purchases impossible
-- [x] Now only mocks in Expo Go (where the native module doesn't exist); dev builds on device/simulator load the real RevenueCat SDK so StoreKit/Play sandbox purchases work
+- [x] A "Send all invitations" button that fires off emails and SMS in parallel
+- [x] Animated sending progress bar showing how many sent / failed
+- [x] The existing edge functions (`send-email` / `send-sms`) and client libs (`lib/email.ts` / `lib/sms.ts`) are already wired — we just connect them to this screen
+- [x] Beautiful dark-themed invitation emails with gold accents (already built in the edge function)
+
+### 4. Access from the Event screen too
+
+- [x] The Event detail screen's "Share invite" action tile now navigates to this Guest List screen (with the QR/link fallback still available)
+- [x] The existing OS share sheet buttons remain as a secondary option below the guest list
+
+### Design
+
+- [x] Dark theme consistent with the rest of Sherehe (deep blacks, pink/gold accents)
+- [x] Guest chips in a wrapping grid with remove buttons
+- [x] Progress bar with animated pink gradient during sending
+- [x] Success/failure count after sending completes
+- [x] Same aesthetic as the event creation wizard — glass-morphism cards, haptic feedback

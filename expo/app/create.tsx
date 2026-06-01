@@ -599,7 +599,7 @@ export default function CreateEventScreen() {
       isPrivate: privacy !== "public",
     });
     router.dismiss();
-    router.push(`/event/${ev.id}` as never);
+    router.push(`/guest-list/${ev.id}` as never);
   };
 
   const [aiLoading, setAiLoading] = useState(false);

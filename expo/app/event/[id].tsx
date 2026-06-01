@@ -268,8 +268,8 @@ export default function EventDetailScreen() {
               iconBg="rgba(255,45,122,0.18)"
               iconColor={C.pinkHi}
               title="Share invite"
-              subtitle="QR · Link"
-              onPress={() => router.push(`/invite/${event.id}` as never)}
+              subtitle="Email · SMS · Link"
+              onPress={() => router.push(`/guest-list/${event.id}` as never)}
             />
             <ActionTile
               icon={CameraIcon}
