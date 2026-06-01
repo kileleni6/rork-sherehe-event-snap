@@ -1426,9 +1426,8 @@ const s = StyleSheet.create({
   dateLabel: { color: C.text, fontSize: 14, fontWeight: "600" as const },
   todRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   todChip: {
-    flex: 1,
-    minWidth: "45%",
-    maxWidth: "48%",
+    flexBasis: "47%",
+    flexGrow: 1,
     padding: 12,
     borderRadius: 16,
     backgroundColor: C.card,
@@ -1665,13 +1664,12 @@ const s = StyleSheet.create({
   tplGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    justifyContent: "space-between",
     marginTop: 10,
   },
   tplCard: {
-    width: "30%",
-    flexGrow: 1,
-    maxWidth: "32%",
+    width: "31.5%",
+    marginBottom: 8,
     padding: 6,
     borderRadius: 16,
     backgroundColor: C.card,

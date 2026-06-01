@@ -23,6 +23,7 @@ import {
   Animated,
   Easing,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   Share,
@@ -154,6 +155,18 @@ export default function GuestListScreen() {
       } catch {
         Alert.alert("Share invite", `Share this link:\n\n${url}`);
       }
+    }
+  };
+
+  const shareViaWhatsApp = async () => {
+    triggerHaptic("selection");
+    const message = encodeURIComponent(`You're invited to ${event.name}! 🎉\n\n${url}`);
+    const waUrl = `https://wa.me/?text=${message}`;
+    try {
+      await Linking.openURL(waUrl);
+    } catch {
+      await Clipboard.setStringAsync(url);
+      toast.success("Invite link copied — share on WhatsApp");
     }
   };
 
@@ -324,7 +337,7 @@ export default function GuestListScreen() {
             <FadeInView delay={40}>
               <SectionTitle style={{ marginTop: 24 }}>Add guests</SectionTitle>
               <Text style={s.muteSub}>
-                Enter names, emails, and/or phone numbers. Each guest will receive a beautiful branded invitation.
+                Enter guest names and emails to send beautiful branded invitations via Resend. Phone (SMS) is optional — the invite link works great on its own too.
               </Text>
 
               <Card style={{ marginTop: 14, gap: 12 }}>
@@ -335,11 +348,8 @@ export default function GuestListScreen() {
                   onChangeText={setName}
                   icon={Users}
                 />
-                <Text style={s.contactRequired}>
-                  Contact — at least one required
-                </Text>
                 <TextField
-                  label="Email (optional)"
+                  label="Email"
                   placeholder="zuri@example.com"
                   value={email}
                   onChangeText={setEmail}
@@ -347,8 +357,13 @@ export default function GuestListScreen() {
                   autoCapitalize="none"
                   icon={Mail}
                 />
+                <View style={s.phoneDivider}>
+                  <View style={s.phoneDividerLine} />
+                  <Text style={s.phoneDividerText}>or send via SMS instead</Text>
+                  <View style={s.phoneDividerLine} />
+                </View>
                 <TextField
-                  label="Phone (optional)"
+                  label="Phone (optional · Twilio required)"
                   placeholder="+1 234 567 8900"
                   value={phone}
                   onChangeText={setPhone}
@@ -486,10 +501,9 @@ export default function GuestListScreen() {
                   <IconButton icon={Copy} onPress={copyLink} size={32} iconSize={16} color={C.pinkHi} variant="ghost" haptic="light" />
                 </View>
                 <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                  <Chip label="WhatsApp" icon="💬" onPress={shareViaSystem} />
-                  <Chip label="SMS" icon="💌" onPress={shareViaSystem} />
-                  <Chip label="Email" icon="📧" onPress={shareViaSystem} />
-                  <Chip label="More" icon="↗" onPress={shareViaSystem} />
+                  <Chip label="WhatsApp" icon="💬" onPress={shareViaWhatsApp} />
+                  <Chip label="Copy link" icon="📋" onPress={copyLink} />
+                  <Chip label="Share…" icon="↗" onPress={shareViaSystem} />
                 </View>
               </Card>
             </FadeInView>
@@ -539,17 +553,22 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   headerTitle: { color: C.text, fontWeight: "700" as const, fontSize: 16 },
-  muteSub: { color: C.subtext, fontSize: 13, marginTop: 6 },
-  contactRequired: {
-    color: C.gold,
-    fontSize: 11,
-    fontWeight: "700" as const,
-    letterSpacing: 0.5,
-    textTransform: "uppercase" as const,
-    marginTop: 14,
-    marginBottom: -2,
-    marginLeft: 2,
+  muteSub: { color: C.subtext, fontSize: 13, marginTop: 6, lineHeight: 19 },
+  phoneDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 4,
   },
+  phoneDividerLine: { flex: 1, height: 1, backgroundColor: C.hair },
+  phoneDividerText: {
+    color: C.mute,
+    fontSize: 11,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
+  },
+
   eventSummary: { padding: 14 },
   eventIcon: {
     width: 44,
