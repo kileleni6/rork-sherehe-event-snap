@@ -160,87 +160,104 @@ export default function GuestListScreen() {
     setSent(0);
     setFailed(0);
 
-    const dateStr = new Date(event.date).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    try {
+      const dateStr = new Date(event.date).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 
-    const totalOps = guests.filter((g) => g.email || g.phone).length * 2;
-    let opsDone = 0;
+      // Count actual operations: one per email invite + one per SMS invite
+      const totalOps =
+        guests.filter((g) => g.email.trim()).length +
+        guests.filter((g) => g.phone.trim()).length;
+      let opsDone = 0;
 
-    const tick = () => {
-      opsDone++;
-      const pct = totalOps > 0 ? opsDone / totalOps : 0;
+      const tick = () => {
+        opsDone++;
+        const pct = totalOps > 0 ? Math.min(opsDone / totalOps, 0.98) : 0;
+        Animated.timing(animProgress, {
+          toValue: pct,
+          duration: 120,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }).start();
+      };
+
+      const emailInvites: InvitationEmail[] = [];
+      const smsInvites: InvitationSms[] = [];
+
+      for (const g of guests) {
+        if (g.email.trim()) {
+          emailInvites.push({
+            guestName: g.name,
+            guestEmail: g.email.trim(),
+            eventName: event.name,
+            hostName: event.hostName,
+            date: dateStr,
+            venue: event.venue,
+            inviteUrl: url,
+          });
+        }
+        if (g.phone.trim()) {
+          smsInvites.push({
+            guestPhone: g.phone.trim(),
+            guestName: g.name,
+            eventName: event.name,
+            hostName: event.hostName,
+            date: dateStr,
+            venue: event.venue,
+            inviteUrl: url,
+          });
+        }
+      }
+
+      // Run email and SMS sends in parallel, with safe result handling
+      const sendEmail = emailInvites.length > 0
+        ? sendBulkInvitations(emailInvites).then((r) => {
+            const safe = r ?? { sent: 0, failed: 0 };
+            for (let i = 0; i < safe.sent + safe.failed; i++) tick();
+            return safe;
+          })
+        : Promise.resolve({ sent: 0, failed: 0 });
+
+      const sendSms = smsInvites.length > 0
+        ? sendBulkInvitationsSms(smsInvites).then((r) => {
+            const safe = r ?? { sent: 0, failed: 0 };
+            for (let i = 0; i < safe.sent + safe.failed; i++) tick();
+            return safe;
+          })
+        : Promise.resolve({ sent: 0, failed: 0 });
+
+      const [emailResult, smsResult] = await Promise.all([sendEmail, sendSms]);
+
+      const totalSent = (emailResult?.sent ?? 0) + (smsResult?.sent ?? 0);
+      const totalFailed = (emailResult?.failed ?? 0) + (smsResult?.failed ?? 0);
+
+      setSent(totalSent);
+      setFailed(totalFailed);
+      setPhase("done");
+
+      // Ensure bar fills to 100%
       Animated.timing(animProgress, {
-        toValue: pct,
-        duration: 120,
-        easing: Easing.out(Easing.quad),
+        toValue: 1,
+        duration: 200,
         useNativeDriver: false,
       }).start();
-    };
 
-    const emailInvites: InvitationEmail[] = [];
-    const smsInvites: InvitationSms[] = [];
-
-    for (const g of guests) {
-      if (g.email.trim()) {
-        emailInvites.push({
-          guestName: g.name,
-          guestEmail: g.email.trim(),
-          eventName: event.name,
-          hostName: event.hostName,
-          date: dateStr,
-          venue: event.venue,
-          inviteUrl: url,
-        });
+      if (totalSent > 0) {
+        toast.success(`${totalSent} invitation${totalSent === 1 ? "" : "s"} sent!`);
+      } else {
+        toast.error("No invitations sent. Please check your connection and try again.");
       }
-      if (g.phone.trim()) {
-        smsInvites.push({
-          guestPhone: g.phone.trim(),
-          guestName: g.name,
-          eventName: event.name,
-          hostName: event.hostName,
-          date: dateStr,
-          venue: event.venue,
-          inviteUrl: url,
-        });
-      }
-    }
-
-    const results = await Promise.all([
-      emailInvites.length > 0
-        ? sendBulkInvitations(emailInvites).then((r) => {
-            for (let i = 0; i < r.sent + r.failed; i++) tick();
-            return r;
-          })
-        : Promise.resolve({ sent: 0, failed: 0 }),
-      smsInvites.length > 0
-        ? sendBulkInvitationsSms(smsInvites).then((r) => {
-            for (let i = 0; i < r.sent + r.failed; i++) tick();
-            return r;
-          })
-        : Promise.resolve({ sent: 0, failed: 0 }),
-    ]);
-
-    const totalSent = results[0].sent + results[1].sent;
-    const totalFailed = results[0].failed + results[1].failed;
-
-    setSent(totalSent);
-    setFailed(totalFailed);
-    setPhase("done");
-
-    // Ensure bar fills to 100%
-    Animated.timing(animProgress, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-
-    if (totalSent > 0) {
-      toast.success(`${totalSent} invitation${totalSent === 1 ? "" : "s"} sent!`);
+    } catch (e: unknown) {
+      console.log("[guest-list] sendInvites failed", e instanceof Error ? e.message : String(e));
+      setPhase("done");
+      setSent(0);
+      setFailed(guests.length);
+      toast.error("Something went wrong. Please try again or use the share link below.");
     }
   };
 
