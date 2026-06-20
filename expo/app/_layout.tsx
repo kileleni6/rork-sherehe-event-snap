@@ -10,7 +10,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/ui";
-import { EventsProvider } from "@/providers/EventsProvider";
+import { getDeviceId } from "@/lib/device";
+import { configurePurchases, getCustomerInfo, isPurchasesAvailable } from "@/lib/purchases";
+import { EventsProvider, useEvents } from "@/providers/EventsProvider";
 import { OnboardingProvider, useOnboarding } from "@/providers/OnboardingProvider";
 
 SplashScreen.preventAutoHideAsync();
@@ -89,6 +91,37 @@ if (typeof globalThis !== "undefined") {
  *  onboarding route group — the gate must not redirect away from them. */
 const ONBOARDING_ADJACENT = new Set(["plan-detail", "paywall"]);
 
+function AppInit({ children }: { children: React.ReactNode }) {
+  const { setProfile } = useEvents();
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // 1. Ensure a persistent device UUID exists (generates on first launch)
+        const deviceId = await getDeviceId();
+        console.log("[app] device id ready", deviceId.slice(0, 8) + "...");
+
+        // 2. Configure RevenueCat with the anonymous device ID
+        if (isPurchasesAvailable()) {
+          await configurePurchases(deviceId);
+
+          // 3. Check for existing entitlements (survives app restart)
+          const info = await getCustomerInfo();
+          if (info?.entitled) {
+            console.log("[app] found active subscription via RevenueCat");
+            await setProfile({ premium: true });
+          }
+        }
+      } catch (e) {
+        console.log("[app] init error (non-fatal)", e);
+      }
+    };
+    init();
+  }, [setProfile]);
+
+  return <>{children}</>;
+}
+
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { completed, isLoading } = useOnboarding();
   const router = useRouter();
@@ -148,9 +181,11 @@ export default function RootLayout() {
             <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0B" }}>
               <StatusBar style="light" />
               <ToastProvider>
-                <OnboardingGate>
-                  <RootLayoutNav />
-                </OnboardingGate>
+                <AppInit>
+                  <OnboardingGate>
+                    <RootLayoutNav />
+                  </OnboardingGate>
+                </AppInit>
               </ToastProvider>
             </GestureHandlerRootView>
           </EventsProvider>

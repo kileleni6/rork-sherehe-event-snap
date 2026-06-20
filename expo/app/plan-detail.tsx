@@ -78,7 +78,7 @@ export default function PlanDetailScreen() {
   const insets = useSafeAreaInsets();
   const { tier: tierId, fromOnboarding } = useLocalSearchParams<{ tier: string; fromOnboarding?: string }>();
   const { setProfile } = useEvents();
-  const { t } = useOnboarding();
+  const { t, update } = useOnboarding();
   const [purchasing, setPurchasing] = useState<boolean>(false);
 
   const tier = TIERS.find((tr) => tr.id === (tierId as TierId));
@@ -118,9 +118,10 @@ export default function PlanDetailScreen() {
         if (result.mocked && Platform.OS !== "web") {
           console.log("[plan-detail] mock unlock (Expo Go / dev)");
         }
-        // When coming from onboarding, continue to auth screen instead of dismissing
+        // When coming from onboarding, complete onboarding directly — no account required
         if (fromOnboarding === "1") {
-          router.replace("/onboarding/auth" as never);
+          await update({ completed: true });
+          router.replace("/(tabs)" as never);
         } else {
           router.dismissAll();
         }

@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
   AlertTriangle,
+  Apple,
   Bell,
   Check,
   ChevronRight,
@@ -17,11 +18,13 @@ import {
   Shield,
   Sparkles,
   Trash2,
+  UserPlus,
   Wand2,
   X,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -43,7 +46,9 @@ import {
   Tag,
 } from "@/components/ui";
 import { C } from "@/constants/colors";
+import { signInWithProvider, type OAuthProvider } from "@/lib/auth";
 import { LANGUAGES, type LangCode } from "@/lib/i18n";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { useEvents } from "@/providers/EventsProvider";
 import { useOnboarding } from "@/providers/OnboardingProvider";
 
@@ -76,10 +81,11 @@ function Row({ icon, title, sub, trailing, onPress }: RowProps) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, events, setProfile } = useEvents();
-  const { language, update, reset, t, notificationsEnabled } = useOnboarding();
+  const { language, update, reset, t, notificationsEnabled, authed, authMethod } = useOnboarding();
   const [langOpen, setLangOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [confirmText, setConfirmText] = useState<string>("");
+  const [signingIn, setSigningIn] = useState<OAuthProvider | null>(null);
 
   const totalPhotos = events.reduce((s, e) => s + e.photos.length, 0);
   const totalGuests = events.reduce((s, e) => s + e.rsvps.length, 0);
@@ -135,6 +141,26 @@ export default function ProfileScreen() {
         onPress: () => Linking.openURL("mailto:hello@sherehe.app").catch(() => {}),
       },
     ]);
+  };
+
+  const handleSignIn = async (provider: OAuthProvider) => {
+    if (signingIn) return;
+    if (!isSupabaseConfigured) {
+      Alert.alert("Sign-in unavailable", "Supabase is not configured. This will be available in a future update.");
+      return;
+    }
+    setSigningIn(provider);
+    try {
+      const result = await signInWithProvider(provider);
+      if (result.ok) {
+        await update({ authed: true, authMethod: provider });
+        Alert.alert("Account linked", `Your events and data are now synced with your ${provider === "google" ? "Google" : "Apple"} account.`);
+      } else if (!result.cancelled) {
+        Alert.alert("Sign-in failed", result.error ?? "Please try again.");
+      }
+    } finally {
+      setSigningIn(null);
+    }
   };
 
   const handleRestart = () => {
@@ -294,6 +320,57 @@ export default function ProfileScreen() {
               <ChevronRight color={C.text} size={22} />
             </PressableScale>
           ) : null}
+
+          {/* ── Account section (optional sign-in) ── */}
+          <Card style={{ gap: 4, padding: 6 }}>
+            {authed ? (
+              <Row
+                icon={<Shield color={C.success} size={18} />}
+                title="Account synced"
+                sub={`Signed in with ${authMethod === "google" ? "Google" : authMethod === "apple" ? "Apple" : "email"}`}
+                trailing={<Check color={C.success} size={18} />}
+              />
+            ) : (
+              <>
+                <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 }}>
+                  <Text style={styles.sectionTitle}>Create an account</Text>
+                  <Text style={styles.sectionSub}>
+                    Sync your events across devices, back up guest lists, and restore purchases on a new phone.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => handleSignIn("google")}
+                  disabled={!!signingIn}
+                  style={[styles.signInBtn, styles.signInGoogle, signingIn && signingIn !== "google" ? { opacity: 0.5 } : null]}
+                >
+                  {signingIn === "google" ? (
+                    <ActivityIndicator color="#1A1A1A" size="small" />
+                  ) : (
+                    <>
+                      <View style={styles.googleG}>
+                        <Text style={{ fontWeight: "900" as const, color: "#1A1A1A", fontSize: 14 }}>G</Text>
+                      </View>
+                      <Text style={styles.signInTextDark}>Continue with Google</Text>
+                    </>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => handleSignIn("apple")}
+                  disabled={!!signingIn}
+                  style={[styles.signInBtn, styles.signInApple, signingIn && signingIn !== "apple" ? { opacity: 0.5 } : null]}
+                >
+                  {signingIn === "apple" ? (
+                    <ActivityIndicator color={C.text} size="small" />
+                  ) : (
+                    <>
+                      <Apple color={C.text} size={20} />
+                      <Text style={styles.signInTextLight}>Continue with Apple</Text>
+                    </>
+                  )}
+                </Pressable>
+              </>
+            )}
+          </Card>
 
           <Card style={{ gap: 4, padding: 6 }}>
             <Row
@@ -644,6 +721,33 @@ const styles = StyleSheet.create({
   deleteOptionTitle: { color: C.text, fontWeight: "700" as const, fontSize: 14 },
   deleteOptionSub: { color: C.subtext, fontSize: 12, marginTop: 2 },
   confirmLabel: { color: C.subtext, fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.3 },
+  // Account sign-in
+  sectionTitle: { color: C.text, fontSize: 14, fontWeight: "800" as const, marginBottom: 4 },
+  sectionSub: { color: C.subtext, fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  signInBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginHorizontal: 12,
+    minHeight: 50,
+  },
+  signInGoogle: { backgroundColor: C.text },
+  signInApple: { backgroundColor: "#000", borderWidth: 1, borderColor: C.hair },
+  signInTextDark: { color: "#1A1A1A", fontSize: 15, fontWeight: "700" as const },
+  signInTextLight: { color: C.text, fontSize: 15, fontWeight: "700" as const },
+  googleG: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: C.text,
+    borderWidth: 1.5,
+    borderColor: "#1A1A1A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   confirmInput: {
     backgroundColor: C.cardHi,
     borderRadius: 14,

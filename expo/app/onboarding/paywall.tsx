@@ -45,7 +45,7 @@ const PERKS = [
 
 export default function OnboardingPaywallScreen() {
   const router = useRouter();
-  const { t } = useOnboarding();
+  const { t, update } = useOnboarding();
   const { retentionDays } = useEvents();
   const { guestTier } = useLocalSearchParams<{ guestTier: string }>();
 
@@ -70,12 +70,13 @@ export default function OnboardingPaywallScreen() {
 
   const subscribe = () => {
     if (!selected) return;
-    // Free tier: no purchase needed — go straight to auth
+    // Free tier: complete onboarding immediately — no account required
     if (selected.free) {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      router.push("/onboarding/auth" as never);
+      update({ completed: true });
+      router.replace("/(tabs)" as never);
       return;
     }
     // Paid tier: show plan-detail confirmation, then purchase
@@ -90,7 +91,8 @@ export default function OnboardingPaywallScreen() {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-    router.push("/onboarding/auth" as never);
+    update({ completed: true });
+    router.replace("/(tabs)" as never);
   };
   const ctaTitle = selected?.free
     ? t("paywall_cta_start_free", { name: selected.name })

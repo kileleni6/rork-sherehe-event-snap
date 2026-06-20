@@ -1,6 +1,8 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
+import { getDeviceId } from "@/lib/device";
+
 /**
  * RevenueCat wrapper.
  *
@@ -10,6 +12,9 @@ import { Platform } from "react-native";
  * StoreKit / Play Billing flow), we lazy-require the SDK and fall back to a
  * mock implementation when the native module is absent.
  *
+ * Anonymous users are identified by a persistent device UUID so purchases
+ * survive app restarts and restores work even without an account.
+ *
  * Three RevenueCat apps power this client:
  *   - Test Store   → EXPO_PUBLIC_REVENUECAT_TEST_API_KEY  (Expo Go / web / __DEV__)
  *   - iOS App Store → EXPO_PUBLIC_REVENUECAT_IOS_API_KEY   (production iOS)
@@ -17,6 +22,12 @@ import { Platform } from "react-native";
  */
 
 export type PurchaseResult = { success: boolean; mocked: boolean; productId?: string; error?: string };
+
+export interface CustomerInfo {
+  entitled: boolean;
+  activeProductId?: string;
+  expirationDate?: number;
+}
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
 
@@ -58,6 +69,13 @@ export function isPurchasesAvailable(): boolean {
   return loadPurchases() !== null;
 }
 
+/**
+ * Initialize RevenueCat with the persistent device UUID.
+ *
+ * Must be called once at app startup. The device UUID ensures purchases
+ * survive app reinstalls (via StoreKit restore) and that anonymous users
+ * can subscribe without creating an account.
+ */
 export async function configurePurchases(userId?: string): Promise<void> {
   const Purchases = loadPurchases();
   if (!Purchases || configured) return;
@@ -67,11 +85,36 @@ export async function configurePurchases(userId?: string): Promise<void> {
     return;
   }
   try {
-    Purchases.configure({ apiKey: key, appUserID: userId });
+    const appUserId = userId ?? (await getDeviceId());
+    Purchases.configure({ apiKey: key, appUserID: appUserId });
     configured = true;
-    console.log("[purchases] configured");
+    console.log("[purchases] configured with user", appUserId.slice(0, 8) + "...");
   } catch (e) {
     console.log("[purchases] configure failed", e);
+  }
+}
+
+/**
+ * Fetch current customer info from RevenueCat to check entitlements.
+ * Returns null when the native module is unavailable (Expo Go / web).
+ */
+export async function getCustomerInfo(): Promise<CustomerInfo | null> {
+  const Purchases = loadPurchases();
+  if (!Purchases) return null;
+  try {
+    await configurePurchases();
+    const info = await Purchases.getCustomerInfo();
+    const entitled = !!info?.entitlements?.active?.pro;
+    return {
+      entitled,
+      activeProductId: info?.entitlements?.active?.pro?.productIdentifier ?? undefined,
+      expirationDate: info?.entitlements?.active?.pro?.expirationDate
+        ? new Date(info.entitlements.active.pro.expirationDate).getTime()
+        : undefined,
+    };
+  } catch (e) {
+    console.log("[purchases] getCustomerInfo failed", e);
+    return null;
   }
 }
 
