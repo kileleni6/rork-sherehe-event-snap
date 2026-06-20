@@ -119,19 +119,12 @@ export default function ProfileScreen() {
     );
   };
 
-  const PRIVACY_URL = "https://preview--sherehe-moments-capture.lovable.app/legal/privacy";
-  const TERMS_URL = "https://preview--sherehe-moments-capture.lovable.app/legal/terms";
-
   const handlePrivacy = () => {
-    Linking.openURL(PRIVACY_URL).catch(() =>
-      Alert.alert("Privacy", "Couldn't open the privacy policy. Visit " + PRIVACY_URL)
-    );
+    router.push("/privacy" as never);
   };
 
   const handleTerms = () => {
-    Linking.openURL(TERMS_URL).catch(() =>
-      Alert.alert("Terms of Service", "Couldn't open the terms. Visit " + TERMS_URL)
-    );
+    router.push("/terms" as never);
   };
 
   const handleHelp = () => {
