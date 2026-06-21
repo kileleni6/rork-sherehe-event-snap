@@ -1160,18 +1160,32 @@ export default function CreateEventScreen() {
                         colors={t.bg}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={s.tplCardSwatch}
+                        style={[s.tplCardSwatch, { borderColor: t.hair }]}
                       >
-                        {/* Ornament accent at top */}
-                        <Text style={[s.tplOrnament, { color: t.accent }]}>{ornamentChar}</Text>
-                        {/* Fake text lines simulating invitation content */}
-                        <View style={[s.tplBlock, { width: "68%", backgroundColor: t.ink, opacity: 0.55 }]} />
-                        <View style={[s.tplBlock, { width: "46%", backgroundColor: t.ink, opacity: 0.35 }]} />
-                        <View style={[s.tplSpacer, { backgroundColor: t.hair }]} />
-                        <View style={[s.tplBlock, { width: "62%", backgroundColor: t.ink, opacity: 0.45 }]} />
-                        <View style={[s.tplBlock, { width: "54%", backgroundColor: t.ink, opacity: 0.3 }]} />
-                        {/* Accent line at bottom */}
-                        <View style={[s.tplAccentLine, { backgroundColor: t.accent }]} />
+                        {/* Inner decorative frame */}
+                        <View style={[s.tplSwatchFrame, { borderColor: t.accent + "30" }]} />
+                        {/* Ornament accent at top with decorative lines */}
+                        <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 14, paddingHorizontal: 4, gap: 6 }}>
+                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.ink, opacity: 0.25 }} />
+                          <Text style={[s.tplOrnament, { color: t.accent, marginBottom: 0 }]}>{ornamentChar}</Text>
+                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.ink, opacity: 0.25 }} />
+                        </View>
+                        {/* Title line */}
+                        <View style={[s.tplBlock, { width: "72%", backgroundColor: t.ink, opacity: 0.55, height: 3.5 }]} />
+                        {/* Subtitle lines */}
+                        <View style={[s.tplBlock, { width: "48%", backgroundColor: t.subInk, opacity: 0.35, height: 2.5 }]} />
+                        <View style={[s.tplSpacer, { backgroundColor: t.accent, opacity: 0.3 }]} />
+                        {/* Content lines */}
+                        <View style={[s.tplBlock, { width: "65%", backgroundColor: t.ink, opacity: 0.4, height: 2.5 }]} />
+                        <View style={[s.tplBlock, { width: "52%", backgroundColor: t.ink, opacity: 0.28, height: 2.5 }]} />
+                        <View style={{ height: 4 }} />
+                        <View style={[s.tplBlock, { width: "58%", backgroundColor: t.subInk, opacity: 0.3, height: 2.5 }]} />
+                        {/* Accent line at bottom with ornament */}
+                        <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginTop: 10, paddingHorizontal: 8, gap: 5 }}>
+                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.accent, opacity: 0.45 }} />
+                          <Text style={{ fontSize: 8, color: t.accent, opacity: 0.7 }}>{ornamentChar}</Text>
+                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.accent, opacity: 0.45 }} />
+                        </View>
                         {active ? (
                           <View style={s.tplCardCheck}>
                             <Check color={C.text} size={14} />
@@ -1678,43 +1692,58 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginTop: 10,
+    gap: 8,
   },
   tplCard: {
-    width: "31.5%",
-    marginBottom: 8,
-    padding: 6,
-    borderRadius: 16,
+    width: "47.5%",
+    marginBottom: 4,
+    padding: 8,
+    borderRadius: 20,
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.hair,
-    gap: 4,
+    gap: 6,
   },
   tplCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
   tplCardSwatch: {
     width: "100%",
-    aspectRatio: 0.78,
-    borderRadius: 10,
+    aspectRatio: 1.05,
+    borderRadius: 14,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.12)",
+    padding: 10,
+    paddingTop: 16,
   },
-  tplOrnament: { fontSize: 14, marginBottom: 2, opacity: 0.9 },
-  tplBlock: { height: 3, borderRadius: 1.5, marginVertical: 2 },
-  tplSpacer: { height: 1, width: "50%", marginVertical: 4, opacity: 0.5, borderRadius: 0.5 },
-  tplAccentLine: { width: "80%", height: 2, borderRadius: 1, marginTop: 4 },
+  tplSwatchFrame: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    right: 4,
+    bottom: 4,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.09)",
+  },
+  tplOrnament: { fontSize: 12, marginBottom: 9, opacity: 0.85, letterSpacing: 4 },
+  tplBlock: { height: 3, borderRadius: 1.5, marginVertical: 2.5, minWidth: 20 },
+  tplSpacer: { height: 1, width: "40%", marginVertical: 7, opacity: 0.4, borderRadius: 0.5 },
+  tplAccentLine: { width: "70%", height: 2.5, borderRadius: 1.25, marginTop: 8 },
   tplCardCheck: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
     borderRadius: 999,
     backgroundColor: C.pink,
     alignItems: "center",
     justifyContent: "center",
   },
-  tplCardName: { color: C.text, fontSize: 12, fontWeight: "700" as const, paddingHorizontal: 4, marginTop: 4 },
-  tplCardTagline: { color: C.mute, fontSize: 10, paddingHorizontal: 4, paddingBottom: 4 },
+  tplCardName: { color: C.text, fontSize: 13, fontWeight: "700" as const, paddingHorizontal: 2, marginTop: 6 },
+  tplCardTagline: { color: C.mute, fontSize: 11, paddingHorizontal: 2, paddingBottom: 2 },
   previewNote: { color: C.subtext, fontSize: 13, textAlign: "center", lineHeight: 19, paddingHorizontal: 24 },
   shotsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   shotTile: {
