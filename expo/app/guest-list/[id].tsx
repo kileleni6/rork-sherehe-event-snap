@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Check,
   ChevronLeft,
+  Contact,
   Copy,
   Link as LinkIcon,
   Mail,
@@ -17,7 +18,7 @@ import {
   Users,
   X,
 } from "lucide-react-native";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -33,6 +34,8 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import ContactPickerSheet from "@/components/ContactPickerSheet";
+import type { ImportedGuest } from "@/components/ContactPickerSheet";
 import { PressableScale } from "@/components/pressable/PressableScale";
 import {
   Card,
@@ -80,6 +83,7 @@ export default function GuestListScreen() {
   const [sent, setSent] = useState<number>(0);
   const [failed, setFailed] = useState<number>(0);
   const [addError, setAddError] = useState<string>("");
+  const [showContactPicker, setShowContactPicker] = useState<boolean>(false);
   const animProgress = useRef(new Animated.Value(0)).current;
 
   const tpl = useMemo(() => (event ? getTemplate(event.template) : undefined), [event]);
@@ -296,6 +300,11 @@ export default function GuestListScreen() {
   const hasPhone = guests.some((g) => g.phone.trim());
   const canSend = guests.length > 0 && (hasEmail || hasPhone);
 
+  const onImportContacts = useCallback((imported: ImportedGuest[]) => {
+    triggerHaptic("success");
+    setGuests((prev) => [...prev, ...imported]);
+  }, []);
+
   return (
     <View style={s.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -340,7 +349,16 @@ export default function GuestListScreen() {
                 Enter guest names and emails to send beautiful branded invitations via Resend. Phone (SMS) is optional — the invite link works great on its own too.
               </Text>
 
-              <Card style={{ marginTop: 14, gap: 12 }}>
+              {/* Import from Contacts chip */}
+              <View style={{ marginTop: 14 }}>
+                <Chip
+                  label="Import from contacts"
+                  icon="📇"
+                  onPress={() => setShowContactPicker(true)}
+                />
+              </View>
+
+              <Card style={{ marginTop: 10, gap: 12 }}>
                 <TextField
                   label="Guest name"
                   placeholder="e.g. Zuri Mensah"
@@ -483,6 +501,13 @@ export default function GuestListScreen() {
           ) : null}
 
           {/* --- QR & Link fallback --- */}
+          {/* Contact Picker Modal */}
+          <ContactPickerSheet
+            visible={showContactPicker}
+            onClose={() => setShowContactPicker(false)}
+            onSelect={onImportContacts}
+          />
+
           {phase !== "sending" ? (
             <FadeInView delay={80}>
               <SectionTitle style={{ marginTop: 28 }}>Or share the link</SectionTitle>

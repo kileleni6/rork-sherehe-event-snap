@@ -1162,56 +1162,16 @@ export default function CreateEventScreen() {
                         end={{ x: 1, y: 1 }}
                         style={[s.tplCardSwatch, { borderColor: t.hair }]}
                       >
-                        {/* Outer frame */}
-                        <View style={[s.tplSwatchFrame, { borderColor: t.accent + "40" }]} />
-
-                        {/* Mini cover image area */}
-                        <View style={[s.tplMiniCover, { backgroundColor: t.ink + "12" }]}>
-                          <LinearGradient
-                            colors={["transparent", t.bg[2] ?? t.bg[1]]}
-                            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "50%" }}
-                          />
+                        {/* Ornament centred in the gradient swatch */}
+                        <View style={s.tplOrnamentWrap}>
+                          <Text style={[s.tplOrnamentChar, { color: t.ink, opacity: 0.55 }]}>{ornamentChar}</Text>
                         </View>
 
-                        {/* Card body content */}
-                        <View style={s.tplMiniBody}>
-                          {/* Kicker line */}
-                          <View style={[s.tplMiniKicker, { backgroundColor: t.subInk, opacity: 0.45 }]} />
-
-                          {/* Ornament divider */}
-                          <View style={s.tplMiniDividerRow}>
-                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
-                            <Text style={[s.tplMiniOrnament, { color: t.accent }]}>{ornamentChar}</Text>
-                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
-                          </View>
-
-                          {/* Title */}
-                          <View style={[s.tplMiniTitle, { backgroundColor: t.ink, opacity: 0.7 }]} />
-
-                          {/* Host line */}
-                          <View style={[s.tplMiniHost, { backgroundColor: t.subInk, opacity: 0.35 }]} />
-
-                          {/* Divider */}
-                          <View style={[s.tplMiniDivider, { backgroundColor: t.hair }]} />
-
-                          {/* Date block */}
-                          <View style={s.tplMiniDateRow}>
-                            <View style={[s.tplMiniDateBig, { backgroundColor: t.ink, opacity: 0.65 }]} />
-                            <View style={[s.tplMiniDateLine, { backgroundColor: t.subInk, opacity: 0.3 }]} />
-                          </View>
-
-                          {/* Divider */}
-                          <View style={[s.tplMiniDivider, { backgroundColor: t.hair }]} />
-
-                          {/* Venue line */}
-                          <View style={[s.tplMiniVenue, { backgroundColor: t.ink, opacity: 0.5 }]} />
-
-                          {/* Bottom ornament */}
-                          <View style={s.tplMiniDividerRow}>
-                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
-                            <Text style={[s.tplMiniOrnament, { color: t.accent }]}>{ornamentChar}</Text>
-                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
-                          </View>
+                        {/* Name & tagline overlay at bottom of swatch */}
+                        <View style={s.tplSwatchLabel}>
+                          <View style={[s.tplSwatchLabelBg, { backgroundColor: t.bg[0] + "D0" }]} />
+                          <Text style={[s.tplSwatchName, { color: t.ink }]} numberOfLines={1}>{t.name}</Text>
+                          <Text style={[s.tplSwatchTagline, { color: t.subInk }]} numberOfLines={1}>{t.tagline}</Text>
                         </View>
 
                         {active ? (
@@ -1220,8 +1180,6 @@ export default function CreateEventScreen() {
                           </View>
                         ) : null}
                       </LinearGradient>
-                      <Text style={s.tplCardName} numberOfLines={1}>{t.name}</Text>
-                      <Text style={s.tplCardTagline} numberOfLines={1}>{t.tagline}</Text>
                     </SelectTile>
                   );
                 })}
@@ -1735,95 +1693,47 @@ const s = StyleSheet.create({
   tplCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
   tplCardSwatch: {
     width: "100%",
-    aspectRatio: 1.2,
+    aspectRatio: 0.85,
     borderRadius: 14,
-    justifyContent: "flex-start",
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.12)",
-  },
-  tplSwatchFrame: {
-    position: "absolute",
-    top: 3,
-    left: 3,
-    right: 3,
-    bottom: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.09)",
-    zIndex: 1,
-  },
-  // Mini invitation preview — cover area
-  tplMiniCover: {
-    height: "28%",
-    width: "100%",
-    justifyContent: "flex-end",
-  },
-  // Mini invitation body
-  tplMiniBody: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
     alignItems: "center",
-    gap: 2,
     justifyContent: "center",
   },
-  tplMiniKicker: {
-    height: 2,
-    width: "48%",
-    borderRadius: 1,
-  },
-  tplMiniDividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    gap: 4,
-    paddingHorizontal: 2,
-  },
-  tplMiniLine: {
+  tplOrnamentWrap: {
     flex: 1,
-    height: 1,
-    borderRadius: 0.5,
-  },
-  tplMiniOrnament: {
-    fontSize: 7,
-    letterSpacing: 2,
-    opacity: 0.8,
-  },
-  tplMiniTitle: {
-    height: 3.5,
-    width: "70%",
-    borderRadius: 1.75,
-  },
-  tplMiniHost: {
-    height: 2,
-    width: "44%",
-    borderRadius: 1,
-  },
-  tplMiniDivider: {
-    height: 0.8,
-    width: "50%",
-    borderRadius: 0.4,
-    marginVertical: 1,
-  },
-  tplMiniDateRow: {
     alignItems: "center",
-    gap: 1.5,
+    justifyContent: "center",
   },
-  tplMiniDateBig: {
-    height: 3,
-    width: "58%",
-    borderRadius: 1.5,
+  tplOrnamentChar: {
+    fontSize: 36,
+    fontWeight: "300" as const,
   },
-  tplMiniDateLine: {
-    height: 2,
-    width: "38%",
-    borderRadius: 1,
+  tplSwatchLabel: {
+    width: "100%",
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    gap: 1,
   },
-  tplMiniVenue: {
-    height: 2.5,
-    width: "50%",
-    borderRadius: 1.25,
+  tplSwatchLabelBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+  },
+  tplSwatchName: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    zIndex: 1,
+  },
+  tplSwatchTagline: {
+    fontSize: 10,
+    fontWeight: "500" as const,
+    opacity: 0.7,
+    zIndex: 1,
   },
   tplCardCheck: {
     position: "absolute",
