@@ -1162,30 +1162,58 @@ export default function CreateEventScreen() {
                         end={{ x: 1, y: 1 }}
                         style={[s.tplCardSwatch, { borderColor: t.hair }]}
                       >
-                        {/* Inner decorative frame */}
-                        <View style={[s.tplSwatchFrame, { borderColor: t.accent + "30" }]} />
-                        {/* Ornament accent at top with decorative lines */}
-                        <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 14, paddingHorizontal: 4, gap: 6 }}>
-                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.ink, opacity: 0.25 }} />
-                          <Text style={[s.tplOrnament, { color: t.accent, marginBottom: 0 }]}>{ornamentChar}</Text>
-                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.ink, opacity: 0.25 }} />
+                        {/* Outer frame */}
+                        <View style={[s.tplSwatchFrame, { borderColor: t.accent + "40" }]} />
+
+                        {/* Mini cover image area */}
+                        <View style={[s.tplMiniCover, { backgroundColor: t.ink + "12" }]}>
+                          <LinearGradient
+                            colors={["transparent", t.bg[2] ?? t.bg[1]]}
+                            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "50%" }}
+                          />
                         </View>
-                        {/* Title line */}
-                        <View style={[s.tplBlock, { width: "72%", backgroundColor: t.ink, opacity: 0.55, height: 3.5 }]} />
-                        {/* Subtitle lines */}
-                        <View style={[s.tplBlock, { width: "48%", backgroundColor: t.subInk, opacity: 0.35, height: 2.5 }]} />
-                        <View style={[s.tplSpacer, { backgroundColor: t.accent, opacity: 0.3 }]} />
-                        {/* Content lines */}
-                        <View style={[s.tplBlock, { width: "65%", backgroundColor: t.ink, opacity: 0.4, height: 2.5 }]} />
-                        <View style={[s.tplBlock, { width: "52%", backgroundColor: t.ink, opacity: 0.28, height: 2.5 }]} />
-                        <View style={{ height: 4 }} />
-                        <View style={[s.tplBlock, { width: "58%", backgroundColor: t.subInk, opacity: 0.3, height: 2.5 }]} />
-                        {/* Accent line at bottom with ornament */}
-                        <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginTop: 10, paddingHorizontal: 8, gap: 5 }}>
-                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.accent, opacity: 0.45 }} />
-                          <Text style={{ fontSize: 8, color: t.accent, opacity: 0.7 }}>{ornamentChar}</Text>
-                          <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: t.accent, opacity: 0.45 }} />
+
+                        {/* Card body content */}
+                        <View style={s.tplMiniBody}>
+                          {/* Kicker line */}
+                          <View style={[s.tplMiniKicker, { backgroundColor: t.subInk, opacity: 0.45 }]} />
+
+                          {/* Ornament divider */}
+                          <View style={s.tplMiniDividerRow}>
+                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
+                            <Text style={[s.tplMiniOrnament, { color: t.accent }]}>{ornamentChar}</Text>
+                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
+                          </View>
+
+                          {/* Title */}
+                          <View style={[s.tplMiniTitle, { backgroundColor: t.ink, opacity: 0.7 }]} />
+
+                          {/* Host line */}
+                          <View style={[s.tplMiniHost, { backgroundColor: t.subInk, opacity: 0.35 }]} />
+
+                          {/* Divider */}
+                          <View style={[s.tplMiniDivider, { backgroundColor: t.hair }]} />
+
+                          {/* Date block */}
+                          <View style={s.tplMiniDateRow}>
+                            <View style={[s.tplMiniDateBig, { backgroundColor: t.ink, opacity: 0.65 }]} />
+                            <View style={[s.tplMiniDateLine, { backgroundColor: t.subInk, opacity: 0.3 }]} />
+                          </View>
+
+                          {/* Divider */}
+                          <View style={[s.tplMiniDivider, { backgroundColor: t.hair }]} />
+
+                          {/* Venue line */}
+                          <View style={[s.tplMiniVenue, { backgroundColor: t.ink, opacity: 0.5 }]} />
+
+                          {/* Bottom ornament */}
+                          <View style={s.tplMiniDividerRow}>
+                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
+                            <Text style={[s.tplMiniOrnament, { color: t.accent }]}>{ornamentChar}</Text>
+                            <View style={[s.tplMiniLine, { backgroundColor: t.accent, opacity: 0.4 }]} />
+                          </View>
                         </View>
+
                         {active ? (
                           <View style={s.tplCardCheck}>
                             <Check color={C.text} size={14} />
@@ -1707,30 +1735,96 @@ const s = StyleSheet.create({
   tplCardActive: { borderColor: C.pink, backgroundColor: "rgba(255,45,122,0.06)" },
   tplCardSwatch: {
     width: "100%",
-    aspectRatio: 1.05,
+    aspectRatio: 1.2,
     borderRadius: 14,
-    alignItems: "center",
     justifyContent: "flex-start",
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.12)",
-    padding: 10,
-    paddingTop: 16,
   },
   tplSwatchFrame: {
     position: "absolute",
-    top: 4,
-    left: 4,
-    right: 4,
-    bottom: 4,
-    borderRadius: 11,
+    top: 3,
+    left: 3,
+    right: 3,
+    bottom: 3,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.09)",
+    zIndex: 1,
   },
-  tplOrnament: { fontSize: 12, marginBottom: 9, opacity: 0.85, letterSpacing: 4 },
-  tplBlock: { height: 3, borderRadius: 1.5, marginVertical: 2.5, minWidth: 20 },
-  tplSpacer: { height: 1, width: "40%", marginVertical: 7, opacity: 0.4, borderRadius: 0.5 },
-  tplAccentLine: { width: "70%", height: 2.5, borderRadius: 1.25, marginTop: 8 },
+  // Mini invitation preview — cover area
+  tplMiniCover: {
+    height: "28%",
+    width: "100%",
+    justifyContent: "flex-end",
+  },
+  // Mini invitation body
+  tplMiniBody: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    alignItems: "center",
+    gap: 2,
+    justifyContent: "center",
+  },
+  tplMiniKicker: {
+    height: 2,
+    width: "48%",
+    borderRadius: 1,
+  },
+  tplMiniDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    gap: 4,
+    paddingHorizontal: 2,
+  },
+  tplMiniLine: {
+    flex: 1,
+    height: 1,
+    borderRadius: 0.5,
+  },
+  tplMiniOrnament: {
+    fontSize: 7,
+    letterSpacing: 2,
+    opacity: 0.8,
+  },
+  tplMiniTitle: {
+    height: 3.5,
+    width: "70%",
+    borderRadius: 1.75,
+  },
+  tplMiniHost: {
+    height: 2,
+    width: "44%",
+    borderRadius: 1,
+  },
+  tplMiniDivider: {
+    height: 0.8,
+    width: "50%",
+    borderRadius: 0.4,
+    marginVertical: 1,
+  },
+  tplMiniDateRow: {
+    alignItems: "center",
+    gap: 1.5,
+  },
+  tplMiniDateBig: {
+    height: 3,
+    width: "58%",
+    borderRadius: 1.5,
+  },
+  tplMiniDateLine: {
+    height: 2,
+    width: "38%",
+    borderRadius: 1,
+  },
+  tplMiniVenue: {
+    height: 2.5,
+    width: "50%",
+    borderRadius: 1.25,
+  },
   tplCardCheck: {
     position: "absolute",
     top: 8,
