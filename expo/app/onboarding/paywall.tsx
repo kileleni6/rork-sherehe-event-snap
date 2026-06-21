@@ -108,7 +108,7 @@ export default function OnboardingPaywallScreen() {
   return (
     <OnboardShell
       step={8}
-      total={9}
+      total={8}
       kicker="UNLOCK"
       title="Host like a star"
       subtitle="One payment per event. Pick your size — or start free and upgrade later."

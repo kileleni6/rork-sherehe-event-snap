@@ -1144,6 +1144,11 @@ export default function CreateEventScreen() {
               <View style={s.tplGrid}>
                 {visibleTemplates.map((t) => {
                   const active = template === t.id;
+                  const ornamentChar =
+                    t.ornament === "ribbon" ? "✦"
+                    : t.ornament === "floral" ? "❀"
+                    : t.ornament === "monogram" ? "◆"
+                    : "—";
                   return (
                     <SelectTile
                       key={t.id}
@@ -1157,9 +1162,16 @@ export default function CreateEventScreen() {
                         end={{ x: 1, y: 1 }}
                         style={s.tplCardSwatch}
                       >
-                        <Text style={[s.tplCardMono, { color: t.ink, fontStyle: t.serif ? "italic" : "normal" }]}>
-                          {t.name.charAt(0)}
-                        </Text>
+                        {/* Ornament accent at top */}
+                        <Text style={[s.tplOrnament, { color: t.accent }]}>{ornamentChar}</Text>
+                        {/* Fake text lines simulating invitation content */}
+                        <View style={[s.tplBlock, { width: "68%", backgroundColor: t.ink, opacity: 0.55 }]} />
+                        <View style={[s.tplBlock, { width: "46%", backgroundColor: t.ink, opacity: 0.35 }]} />
+                        <View style={[s.tplSpacer, { backgroundColor: t.hair }]} />
+                        <View style={[s.tplBlock, { width: "62%", backgroundColor: t.ink, opacity: 0.45 }]} />
+                        <View style={[s.tplBlock, { width: "54%", backgroundColor: t.ink, opacity: 0.3 }]} />
+                        {/* Accent line at bottom */}
+                        <View style={[s.tplAccentLine, { backgroundColor: t.accent }]} />
                         {active ? (
                           <View style={s.tplCardCheck}>
                             <Check color={C.text} size={14} />
@@ -1686,7 +1698,10 @@ const s = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  tplCardMono: { fontSize: 32, fontWeight: "300" as const, opacity: 0.85 },
+  tplOrnament: { fontSize: 14, marginBottom: 2, opacity: 0.9 },
+  tplBlock: { height: 3, borderRadius: 1.5, marginVertical: 2 },
+  tplSpacer: { height: 1, width: "50%", marginVertical: 4, opacity: 0.5, borderRadius: 0.5 },
+  tplAccentLine: { width: "80%", height: 2, borderRadius: 1, marginTop: 4 },
   tplCardCheck: {
     position: "absolute",
     top: 6,

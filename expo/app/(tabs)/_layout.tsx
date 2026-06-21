@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { Calendar, Camera, Images, User } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { C } from "@/constants/colors";
 import { triggerHaptic } from "@/lib/haptics";
@@ -10,6 +11,13 @@ import { useOnboarding } from "@/providers/OnboardingProvider";
 
 export default function TabLayout() {
   const { t } = useOnboarding();
+  const insets = useSafeAreaInsets();
+
+  // Floating tab bar respecting platform safe areas.
+  // iOS home indicator needs ~34 px; Android gesture nav needs ~16 px.
+  const bottomPad = Platform.OS === "ios" ? Math.max(insets.bottom, 28) : Math.max(insets.bottom, 16);
+  const tabBarHeight = 56 + bottomPad;
+
   return (
     <Tabs
       screenListeners={{
@@ -26,9 +34,9 @@ export default function TabLayout() {
           borderTopWidth: 0,
           backgroundColor: Platform.OS === "ios" ? "transparent" : C.bg,
           elevation: 0,
-          height: 84,
-          paddingBottom: 24,
-          paddingTop: 10,
+          height: tabBarHeight,
+          paddingBottom: bottomPad,
+          paddingTop: 8,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
