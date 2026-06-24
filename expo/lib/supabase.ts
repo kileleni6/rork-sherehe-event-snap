@@ -38,7 +38,24 @@ function fetchWithTimeout(
   }
   mergedInit.signal = controller.signal;
 
-  return fetch(input, mergedInit)
+  // Wrap in try/catch so that browser extensions that override fetch and
+  // throw synchronously (e.g. Ant Video Downloader) don't crash the app.
+  let promise: Promise<Response>;
+  try {
+    promise = fetch(input, mergedInit);
+  } catch (syncErr: unknown) {
+    clearTimeout(timer);
+    const message =
+      syncErr instanceof Error ? syncErr.message : "Network request failed";
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ message, code: "NETWORK_ERROR" }),
+        { status: 503, statusText: message, headers: { "content-type": "application/json" } },
+      ),
+    );
+  }
+
+  return promise
     .catch((err: unknown) => {
       // Convert network-layer failures into a synthetic 503 so callers (and
       // the Supabase client internals) treat it as a server-unavailable error
