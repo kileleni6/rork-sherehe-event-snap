@@ -1,32 +1,18 @@
 /**
- * SHEREHE AI module — lightweight wrapper around the Rork AI proxy.
+ * SHEREHE AI module — calls the Supabase Edge Function for AI generation.
  *
- * Uses the Vercel AI Gateway via the Rork toolkit proxy so the app only
- * needs the public toolkit secret — no provider API keys on the client.
- *
- * Current model: openai/gpt-4.1-nano
- *   - Fastest & cheapest GPT-4.1 variant
- *   - 1M+ context, 32k max output
- *   - ~$0.0000001/input token, $0.0000004/output token
- *   - Latency: p50 ~550ms
- *
- * Why this model: invitation messages are short (50-150 words) and need
- * creative flair, not deep reasoning. nano delivers solid prose at the
- * lowest cost/lowest latency in the GPT-4 family.
+ * The Edge Function (`ai-invitation`) proxies requests to the AI provider
+ * with server-side rate limiting and keeps the API secret off the client.
  *
  * Rate limiting: 15 requests per hour per device. Tracked via AsyncStorage
- * using a sliding-window of timestamps. Excess requests return null silently
- * so the caller falls back to template-based messages.
+ * using a sliding-window of timestamps — the edge function also enforces
+ * its own rate limit as a second layer.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const TOOLKIT_URL = process.env.EXPO_PUBLIC_TOOLKIT_URL ?? "";
-const SECRET_KEY = process.env.EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY ?? "";
-
-const MODEL_ID = "openai/gpt-4.1-nano";
-const ENDPOINT = `${TOOLKIT_URL}/v2/vercel/v1/chat/completions`;
-const TIMEOUT_MS = 15_000;
+import { supabase } from "@/lib/supabase";
+import { getDeviceId } from "@/lib/device";
 
 // Rate limit: max requests per hour
 const RATE_LIMIT_MAX = 15;
@@ -78,106 +64,45 @@ interface AiInvitationInput {
 }
 
 /**
- * Generate a fresh invitation message using AI.
+ * Generate a fresh invitation message using AI via the server-side Edge Function.
  * Falls back to returning null if the AI call fails — the caller should
  * use its own template-based fallback in that case.
  */
 export async function generateInvitationMessage(
   input: AiInvitationInput,
 ): Promise<string | null> {
-  if (!TOOLKIT_URL || !SECRET_KEY) {
-    console.log("[ai] Toolkit URL or secret key not configured");
-    return null;
-  }
-
-  // Enforce rate limit before making the API call
+  // Enforce client-side rate limit before making the network call
   const allowed = await checkRateLimit();
   if (!allowed) return null;
 
-  const label = input.eventType === "custom" && input.customLabel
-    ? input.customLabel
-    : input.eventType;
-
-  const systemPrompt = [
-    "You are a warm, personal invitation writer. Write messages that feel handwritten — not corporate.",
-    "Rules:",
-    "- 2-4 sentences max (50-120 words)",
-    "- Never use clichés like \"You're cordially invited\" or \"Save the date\"",
-    "- Match the tone to the event type naturally",
-    "- Address the recipient as a valued guest, not a crowd",
-    "- Use the host's name naturally if it fits",
-    "- Avoid exclamation marks unless the event is genuinely high-energy",
-    "- Write in plain, modern English — no formality for formality's sake",
-  ].join("\n");
-
-  const userPrompt = input.existing
-    ? [
-        `Rewrite this invitation message to be fresher and more personal. Keep the same length and key details.`,
-        ``,
-        `Event: ${input.eventName} (${label})`,
-        `Host: ${input.hostName}`,
-        `Venue: ${input.venue}`,
-        ``,
-        `Current draft:`,
-        input.existing,
-      ].join("\n")
-    : [
-        `Write a short, warm invitation message for this event:`,
-        ``,
-        `Event: ${input.eventName}`,
-        `Type: ${label}`,
-        `Host: ${input.hostName}`,
-        `Venue: ${input.venue}`,
-      ].join("\n");
-
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error("AI request timed out")), TIMEOUT_MS);
+    const deviceId = await getDeviceId();
+    const { data, error } = await supabase.functions.invoke<{
+      content: string | null;
+      error: string | null;
+    }>("ai-invitation", {
+      body: {
+        eventType: input.eventType,
+        customLabel: input.customLabel,
+        hostName: input.hostName,
+        eventName: input.eventName,
+        venue: input.venue,
+        existing: input.existing,
+        deviceId,
+      },
+    });
 
-    let response: Response;
-    try {
-      response = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SECRET_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: MODEL_ID,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.85,
-          max_tokens: 250,
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      console.log(`[ai] API error ${response.status}: ${text.slice(0, 200)}`);
+    if (error) {
+      console.log("[ai] Edge Function error:", error.message);
       return null;
     }
 
-    const data = await response.json() as {
-      choices?: { message?: { content?: string } }[];
-    };
-
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      console.log("[ai] Empty response from AI");
+    if (data?.error) {
+      console.log("[ai] Server-side error:", data.error);
       return null;
     }
 
-    // Clean up: strip quotes, trim whitespace, normalize newlines
-    return content
-      .replace(/^["']|["']$/g, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    return data?.content ?? null;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.log("[ai] Generation failed:", msg);

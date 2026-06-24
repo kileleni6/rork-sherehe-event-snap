@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Check, ChevronLeft, Images, Sparkles, Timer, Zap, ZapOff } from "lucide-react-native";
@@ -8,7 +8,7 @@ import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } fro
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { C } from "@/constants/colors";
-import { CAMERA_STYLES, STOCK_SHOTS, type CameraStyleId } from "@/constants/templates";
+import { CAMERA_STYLES, type CameraStyleId } from "@/constants/templates";
 import { useEvents } from "@/providers/EventsProvider";
 import type { Photo } from "@/types/event";
 
@@ -17,7 +17,9 @@ export default function CameraScreen() {
   const router = useRouter();
   const { findById, addPhoto } = useEvents();
   const event = findById(id);
+  const cameraRef = useRef<CameraView>(null);
 
+  const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState<boolean>(false);
   const [timer, setTimer] = useState<boolean>(false);
   const [styleId, setStyleId] = useState<CameraStyleId>("disposable");
@@ -25,6 +27,7 @@ export default function CameraScreen() {
   const [lastShot, setLastShot] = useState<Photo | null>(null);
   const [flashAnim] = useState<Animated.Value>(new Animated.Value(0));
   const [shutterAnim] = useState<Animated.Value>(new Animated.Value(1));
+  const [facing, setFacing] = useState<CameraType>("back");
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanup = useCallback(() => {
@@ -35,6 +38,13 @@ export default function CameraScreen() {
   }, []);
 
   useEffect(() => () => cleanup(), [cleanup]);
+
+  // Request camera permission on mount
+  useEffect(() => {
+    if (!permission?.granted) {
+      requestPermission().catch(() => {});
+    }
+  }, [permission, requestPermission]);
 
   const camStyle = useMemo(
     () => CAMERA_STYLES.find((c) => c.id === styleId) ?? CAMERA_STYLES[0],
@@ -50,7 +60,6 @@ export default function CameraScreen() {
   }
 
   const shotsLeft = event.shotsPerGuest - event.photos.length;
-  const previewUri = STOCK_SHOTS[event.photos.length % STOCK_SHOTS.length];
   const isPolaroid = camStyle.frame === "polaroid";
 
   const doCapture = async () => {
@@ -70,7 +79,21 @@ export default function CameraScreen() {
       ]).start();
     }
 
-    const uri = STOCK_SHOTS[Math.floor(Math.random() * STOCK_SHOTS.length)];
+    // Capture real photo using expo-camera
+    let uri: string | undefined;
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({ base64: false });
+      uri = photo?.uri;
+    } catch (e) {
+      console.log("[camera] capture failed", e);
+    }
+
+    if (!uri) {
+      // Fallback: if camera capture fails (web preview / permissions denied),
+      // use a placeholder and mark it clearly
+      uri = `https://placehold.co/800x1000/1A0410/FFD166?text=Photo+${event.photos.length + 1}`;
+    }
+
     const p = await addPhoto(event.id, { uri, guestName: "You", style: styleId });
     setLastShot(p);
   };
@@ -98,6 +121,29 @@ export default function CameraScreen() {
       }
     }, 1000);
   };
+
+  // No camera permission — show a clean placeholder (App Store compliant)
+  if (!permission?.granted) {
+    return (
+      <View style={s.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <View style={s.permCard}>
+            <Text style={s.permTitle}>Camera access needed</Text>
+            <Text style={s.permBody}>
+              SHEREHE uses your camera to capture event photos. Your photos stay private until the gallery reveal time set by the host.
+            </Text>
+            <Pressable onPress={() => requestPermission()} style={s.permBtn}>
+              <Text style={s.permBtnText}>Grant camera permission</Text>
+            </Pressable>
+            <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+              <Text style={s.permSkip}>Go back</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>
@@ -129,7 +175,14 @@ export default function CameraScreen() {
             ]}
           >
             <View style={[s.imageArea, isPolaroid ? s.imageAreaPolaroid : null]}>
-              <Image source={{ uri: previewUri }} style={StyleSheet.absoluteFillObject as never} contentFit="cover" />
+              {/* Real camera viewfinder */}
+              <CameraView
+                ref={cameraRef}
+                style={StyleSheet.absoluteFillObject as never}
+                facing={facing}
+                flash={flash ? "on" : "off"}
+              />
+
               {/* Filter overlay */}
               <View style={[StyleSheet.absoluteFillObject as never, { backgroundColor: camStyle.overlay }]} />
               {/* Vignette */}
@@ -138,19 +191,20 @@ export default function CameraScreen() {
                 start={{ x: 0.5, y: 0.3 }}
                 end={{ x: 0.5, y: 1 }}
                 style={StyleSheet.absoluteFillObject as never}
+                pointerEvents="none"
               />
-              {/* Grain (cheap) */}
-              <View style={[s.grain, { opacity: camStyle.grain }]} />
+              {/* Grain overlay */}
+              <View style={[s.grain, { opacity: camStyle.grain }]} pointerEvents="none" />
 
               {/* Corner frame — only on non-polaroid */}
               {!isPolaroid
                 ? (["tl", "tr", "bl", "br"] as const).map((p) => (
-                    <View key={p} style={[s.corner, s[p]]} />
+                    <View key={p} style={[s.corner, s[p]]} pointerEvents="none" />
                   ))
                 : null}
 
               {/* Counter & frame info */}
-              <View style={s.topInfo}>
+              <View style={s.topInfo} pointerEvents="none">
                 <View style={s.infoPill}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                     <View style={s.recDot} />
@@ -165,7 +219,7 @@ export default function CameraScreen() {
               </View>
 
               {counting > 0 ? (
-                <View style={s.countdownOverlay}>
+                <View style={s.countdownOverlay} pointerEvents="none">
                   <Text style={s.countdownNum}>{counting}</Text>
                 </View>
               ) : null}
@@ -186,7 +240,9 @@ export default function CameraScreen() {
           {/* Last shot peek */}
           {lastShot ? (
             <View style={s.lastShot}>
-              <Image source={{ uri: lastShot.uri }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              <View style={{ width: "100%", height: "100%", backgroundColor: C.cardHi, alignItems: "center", justifyContent: "center" }}>
+                <Check color={C.success} size={18} />
+              </View>
               <View style={s.lastShotBadge}>
                 <Check color={C.text} size={12} />
               </View>
@@ -245,12 +301,16 @@ export default function CameraScreen() {
           </Pressable>
         </View>
 
+        {/* Flip camera button */}
         <View style={s.bottomRow}>
+          <Pressable onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))} style={s.flipBtn}>
+            <Text style={s.flipBtnText}>{facing === "back" ? "Use front camera" : "Use back camera"}</Text>
+          </Pressable>
           <Sparkles color={C.pinkHi} size={14} />
           <Text style={s.bottomText}>
             {shotsLeft > 0
               ? `${shotsLeft} shot${shotsLeft === 1 ? "" : "s"} left · locks until reveal`
-              : "Roll complete. See you at the reveal ✦"}
+              : "Roll complete. See you at the reveal"}
           </Text>
         </View>
       </SafeAreaView>
@@ -285,6 +345,29 @@ const s = StyleSheet.create({
   },
   dotLive: { width: 8, height: 8, borderRadius: 999, backgroundColor: C.pink },
   eventPillText: { color: C.text, fontWeight: "600" as const, fontSize: 12 },
+
+  // Permission placeholder
+  permCard: {
+    backgroundColor: C.card,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: C.hair,
+    padding: 28,
+    alignItems: "center",
+    gap: 16,
+  },
+  permTitle: { color: C.text, fontSize: 20, fontWeight: "800" as const, letterSpacing: -0.3 },
+  permBody: { color: C.subtext, fontSize: 13, lineHeight: 20, textAlign: "center" },
+  permBtn: {
+    backgroundColor: C.pink,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  permBtnText: { color: C.text, fontSize: 15, fontWeight: "700" as const },
+  permSkip: { color: C.subtext, fontSize: 13 },
+
+  // Viewfinder
   viewfinder: { flex: 1, paddingHorizontal: 14, paddingTop: 6, alignItems: "center" },
   viewfinderInner: {
     flex: 1,
@@ -409,6 +492,16 @@ const s = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.15)",
   },
   shutterCount: { color: C.text, fontSize: 22, fontWeight: "800" as const },
+  flipBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: C.card,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.hair,
+    marginRight: 10,
+  },
+  flipBtnText: { color: C.subtext, fontSize: 11, fontWeight: "600" as const },
   bottomRow: {
     flexDirection: "row",
     alignItems: "center",

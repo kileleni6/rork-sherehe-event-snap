@@ -114,9 +114,14 @@ export default function PlanDetailScreen() {
       const result = await purchasePackageByKey(tier.rcPackage, tier.rcProductId);
       if (result.success) {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        await setProfile({ premium: true });
-        if (result.mocked && Platform.OS !== "web") {
-          console.log("[plan-detail] mock unlock (Expo Go / dev)");
+        // Verify entitlements from RevenueCat before granting access
+        const { getCustomerInfo } = await import("@/lib/purchases");
+        const customerInfo = await getCustomerInfo();
+        if (customerInfo?.entitled) {
+          await setProfile({ premium: true });
+        } else {
+          console.log("[plan-detail] purchase returned success but entitlement check failed");
+          // Don't grant premium — the entitlement hasn't activated yet
         }
         // When coming from onboarding, complete onboarding directly — no account required
         if (fromOnboarding === "1") {

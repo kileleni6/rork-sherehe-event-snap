@@ -124,9 +124,11 @@ export async function purchasePackageByKey(
 ): Promise<PurchaseResult> {
   const Purchases = loadPurchases();
   if (!Purchases) {
-    // Expo Go / web — mock success so the UI flow can be tested.
-    console.log("[purchases] mock purchase", packageKey, productId);
-    return { success: true, mocked: true, productId };
+    // Native module unavailable — do NOT grant access.
+    // On a real device build this path is unreachable; on Expo Go / web
+    // there is no StoreKit so purchases cannot complete.
+    console.log("[purchases] native module unavailable — purchase not possible");
+    return { success: false, mocked: false, error: "native_module_unavailable" };
   }
   try {
     await configurePurchases();
@@ -161,7 +163,7 @@ export async function purchasePackageByKey(
 export async function restorePurchases(): Promise<{ success: boolean; mocked: boolean; entitled: boolean }> {
   const Purchases = loadPurchases();
   if (!Purchases) {
-    return { success: true, mocked: true, entitled: false };
+    return { success: false, mocked: false, entitled: false };
   }
   try {
     await configurePurchases();

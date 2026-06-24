@@ -618,3 +618,31 @@ export async function deleteSupabasePhoto(photoId: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Update a photo record (e.g. flag for moderation). */
+export async function updateSupabasePhoto(
+  photoId: string,
+  patch: Partial<Photo>
+): Promise<boolean> {
+  try {
+    const dbPatch: Record<string, unknown> = {};
+    if (patch.flagged !== undefined) dbPatch.flagged = patch.flagged;
+    if (patch.expired !== undefined) dbPatch.expired = patch.expired;
+    if (patch.expiresAt !== undefined) dbPatch.expires_at = new Date(patch.expiresAt).toISOString();
+
+    const { error } = await supabase
+      .from("photos")
+      .update(dbPatch)
+      .eq("id", photoId);
+
+    if (error) {
+      console.log("[supabase] updateSupabasePhoto failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.log("[supabase] updateSupabasePhoto network error", msg);
+    return false;
+  }
+}

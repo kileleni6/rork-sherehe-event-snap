@@ -239,6 +239,33 @@ export default function ProfileScreen() {
   };
 
   const confirmDelete = async () => {
+    setDeleteOpen(false);
+    setConfirmText("");
+
+    // 1. Delete server-side data (Supabase auth user + cascade events/RSVPs/photos)
+    if (isSupabaseConfigured && authed) {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const { error: fnError } = await supabase.functions.invoke("delete-account", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (fnError) {
+            console.log("[delete] server delete failed", fnError.message);
+            Alert.alert(
+              "Partial deletion",
+              "Your server data could not be fully deleted. Your local data has been removed. Contact hello@sherehe.app if you need help."
+            );
+          }
+        }
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.log("[delete] server delete error", e);
+      }
+    }
+
+    // 2. Clear local data
     try {
       const keys = [
         "sherehe.events.v1",
@@ -250,10 +277,12 @@ export default function ProfileScreen() {
     } catch (e) {
       console.log("[delete]", e);
     }
+
     await reset();
-    setDeleteOpen(false);
-    setConfirmText("");
-    Alert.alert("Account deleted", "Your account and all data have been removed from this device.");
+    Alert.alert(
+      "Account deleted",
+      "Your account and all associated data have been permanently deleted. You'll be returned to the welcome screen."
+    );
     router.replace("/onboarding" as never);
   };
 
@@ -442,12 +471,7 @@ export default function ProfileScreen() {
             />
           </Card>
 
-          <GhostButton
-            title={profile.premium ? t("profile_pro_toggle_on") : t("profile_pro_toggle_off")}
-            icon={LogOut}
-            onPress={() => setProfile({ premium: !profile.premium })}
-          />
-          <PrimaryButton title={t("profile_manage")} onPress={() => router.push("/(tabs)" as never)} />
+
           <View style={{ height: 120 }} />
         </ScrollView>
       </SafeAreaView>
